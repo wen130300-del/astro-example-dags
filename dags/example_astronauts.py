@@ -407,17 +407,38 @@ def example_astronauts():
         # Define a dataset outlet for correlation analysis results
         outlets=[Dataset("correlation_analysis")]
     )
-    def analyze_correlation(astronaut_stats: dict, weather_data: dict) -> dict:
+    def analyze_correlation(
+        astronaut_stats: dict, weather_data: dict, calculated_stats: dict
+    ) -> dict:
         """
-        This task analyzes the correlation between astronaut data and weather data.
-        While these datasets are inherently independent, this demonstrates how to
-        combine multiple data sources and perform comparative analysis.
+        This task analyzes the correlation between astronaut data, weather data,
+        and calculated statistics. While these datasets are inherently independent,
+        this demonstrates how to combine multiple data sources and perform
+        comprehensive comparative analysis with statistical measures.
         """
-        # Extract key metrics
+        # Extract key metrics from astronaut_stats
         total_astronauts = astronaut_stats.get("total_astronauts", 0)
         unique_spacecraft = astronaut_stats.get("unique_spacecraft_count", 0)
         avg_per_craft = astronaut_stats.get("average_per_craft", 0)
 
+        # Extract calculated statistics
+        std_deviation = calculated_stats.get("variability_measures", {}).get(
+            "standard_deviation", 0
+        )
+        coefficient_variation = calculated_stats.get("variability_measures", {}).get(
+            "coefficient_of_variation_percent", 0
+        )
+        distribution_pattern = calculated_stats.get("distribution_analysis", {}).get(
+            "pattern", "unknown"
+        )
+        evenness_score = calculated_stats.get("distribution_analysis", {}).get(
+            "distribution_evenness_score", 0
+        )
+        capacity_utilization = calculated_stats.get("capacity_metrics", {}).get(
+            "current_utilization_percent", 0
+        )
+
+        # Extract weather metrics
         temperature = weather_data.get("temperature_celsius", 0)
         humidity = weather_data.get("humidity_percent", 0)
         wind_speed = weather_data.get("wind_speed_kmh", 0)
@@ -438,6 +459,13 @@ def example_astronauts():
                 "spacecraft_distribution": astronaut_stats.get(
                     "spacecraft_distribution", {}
                 ),
+            },
+            "calculated_statistics": {
+                "standard_deviation": std_deviation,
+                "coefficient_of_variation": coefficient_variation,
+                "distribution_pattern": distribution_pattern,
+                "evenness_score": evenness_score,
+                "capacity_utilization": capacity_utilization,
             },
             "weather_metrics": {
                 "temperature_celsius": temperature,
@@ -489,6 +517,37 @@ def example_astronauts():
                 f"High spacecraft diversity: {unique_spacecraft} different craft types in use"
             )
 
+        # Statistical distribution insights
+        if distribution_pattern == "uniform":
+            insights.append(
+                f"Crew distribution is uniform (CV: {coefficient_variation:.1f}%) - balanced allocation"
+            )
+        elif distribution_pattern == "highly_variable":
+            insights.append(
+                f"Crew distribution is highly variable (CV: {coefficient_variation:.1f}%) - diverse missions"
+            )
+
+        # Capacity insights
+        if capacity_utilization < 30:
+            insights.append(
+                f"Low capacity utilization ({capacity_utilization:.1f}%) - room for expansion"
+            )
+        elif capacity_utilization > 70:
+            insights.append(
+                f"High capacity utilization ({capacity_utilization:.1f}%) - near maximum"
+            )
+
+        # Cross-correlation insights (statistical patterns with environmental conditions)
+        if coefficient_variation < 20 and pressure > 1013:
+            insights.append(
+                "Stable crew distribution paired with stable atmospheric conditions"
+            )
+
+        if evenness_score > 80 and temperature > 20:
+            insights.append(
+                f"Optimal conditions: even crew distribution ({evenness_score:.0f}/100) and comfortable ground temp"
+            )
+
         # Calculate data quality score (0-100)
         quality_score = 100
         if weather_data.get("error"):
@@ -500,13 +559,22 @@ def example_astronauts():
         analysis["data_quality_score"] = quality_score
 
         # Print comprehensive correlation analysis
-        print("=" * 70)
-        print("CORRELATION ANALYSIS: ASTRONAUT DATA & WEATHER DATA")
-        print("=" * 70)
+        print("=" * 80)
+        print("CORRELATION ANALYSIS: ASTRONAUT, WEATHER & STATISTICAL DATA")
+        print("=" * 80)
         print("\n📊 ASTRONAUT METRICS:")
         print(f"  • Total Astronauts in Space: {total_astronauts}")
         print(f"  • Unique Spacecraft: {unique_spacecraft}")
         print(f"  • Average per Craft: {avg_per_craft}")
+
+        print("\n📈 CALCULATED STATISTICS:")
+        print(f"  • Standard Deviation: {std_deviation:.2f}")
+        print(f"  • Coefficient of Variation: {coefficient_variation:.2f}%")
+        print(
+            f"  • Distribution Pattern: {distribution_pattern.replace('_', ' ').title()}"
+        )
+        print(f"  • Evenness Score: {evenness_score:.0f}/100")
+        print(f"  • Capacity Utilization: {capacity_utilization:.2f}%")
 
         print("\n🌦️  WEATHER METRICS (NASA JSC):")
         print(f"  • Temperature: {temperature}°C")
@@ -557,13 +625,14 @@ def example_astronauts():
     astronaut_statistics = aggregate_astronaut_data(astronaut_list)
 
     # Calculate advanced statistics (produces calculated_statistics Dataset)
-    calculate_astronauts_stats(astronaut_list)
+    calculated_statistics = calculate_astronauts_stats(astronaut_list)
 
     # Fetch weather data independently (produces weather_data Dataset)
     weather_info = get_weather_data()
 
-    # Analyze correlation between astronaut and weather data (produces correlation_analysis Dataset)
-    analyze_correlation(astronaut_statistics, weather_info)
+    # Analyze correlation between astronaut, weather, and calculated statistics data
+    # (produces correlation_analysis Dataset)
+    analyze_correlation(astronaut_statistics, weather_info, calculated_statistics)
 
     # Use dynamic task mapping to run the print_astronaut_craft task for each
     # Astronaut in space

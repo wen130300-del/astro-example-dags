@@ -2982,6 +2982,863 @@ def example_astronauts():
         return comparison_results
 
     @task(
+        # Define a dataset outlet for alert notifications
+        outlets=[Dataset("alert_notifications")]
+    )
+    def generate_alert_notifications(
+        insights_report: dict,
+        regression_result: dict,
+        model_comparison: dict,
+        validation_result: dict,
+        comprehensive_analysis: dict,
+        calculated_stats: dict,
+        **context,
+    ) -> dict:
+        """
+        This task generates alert notifications based on critical thresholds from analysis results.
+        Alerts are categorized by severity (CRITICAL, HIGH, MEDIUM, LOW) and include actionable
+        recommendations. In production, this would trigger email/Slack notifications.
+        """
+
+        execution_date = context.get("ds", "N/A")
+
+        print("\n")
+        print("╔" + "═" * 98 + "╗")
+        print("║" + " " * 33 + "ALERT NOTIFICATION SYSTEM" + " " * 39 + "║")
+        print("╠" + "═" * 98 + "╣")
+        print("║" + f" Generated: {execution_date}".ljust(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+
+        # ========== ALERT COLLECTION ==========
+        alerts = []
+
+        def add_alert(
+            severity,
+            category,
+            title,
+            message,
+            threshold=None,
+            actual_value=None,
+            action=None,
+        ):
+            """Helper function to add an alert"""
+            alert = {
+                "severity": severity,
+                "category": category,
+                "title": title,
+                "message": message,
+                "timestamp": execution_date,
+                "priority": {"CRITICAL": 1, "HIGH": 2, "MEDIUM": 3, "LOW": 4}.get(
+                    severity, 5
+                ),
+            }
+            if threshold is not None:
+                alert["threshold"] = threshold
+            if actual_value is not None:
+                alert["actual_value"] = actual_value
+            if action:
+                alert["recommended_action"] = action
+            alerts.append(alert)
+
+        # ========== THRESHOLD DEFINITIONS ==========
+        thresholds = {
+            "capacity_critical": 95,
+            "capacity_warning": 85,
+            "health_score_critical": 40,
+            "health_score_warning": 60,
+            "r_squared_poor": 0.5,
+            "validation_pass_rate_critical": 70,
+            "validation_pass_rate_warning": 85,
+            "astronaut_count_anomaly": 20,  # % deviation
+            "prediction_variance_high": 30,  # % variance in predictions
+        }
+
+        # ========== CAPACITY UTILIZATION ALERTS ==========
+        capacity_utilization = calculated_stats.get("capacity_utilization_rate", 0)
+
+        if capacity_utilization >= thresholds["capacity_critical"]:
+            add_alert(
+                "CRITICAL",
+                "Capacity Management",
+                "Critical Capacity Exceeded",
+                f"Spacecraft capacity utilization at {capacity_utilization:.1f}% - immediate action required",
+                threshold=f"{thresholds['capacity_critical']}%",
+                actual_value=f"{capacity_utilization:.1f}%",
+                action="Consider launching additional spacecraft or redistributing crew members",
+            )
+        elif capacity_utilization >= thresholds["capacity_warning"]:
+            add_alert(
+                "HIGH",
+                "Capacity Management",
+                "High Capacity Warning",
+                f"Spacecraft capacity utilization at {capacity_utilization:.1f}% - approaching limits",
+                threshold=f"{thresholds['capacity_warning']}%",
+                actual_value=f"{capacity_utilization:.1f}%",
+                action="Monitor capacity closely and prepare contingency plans",
+            )
+
+        # ========== HEALTH SCORE ALERTS ==========
+        health_score = insights_report.get("overall_health_score", 100)
+
+        if health_score < thresholds["health_score_critical"]:
+            add_alert(
+                "CRITICAL",
+                "System Health",
+                "Critical Health Score",
+                f"Overall system health at {health_score:.1f}/100 - multiple issues detected",
+                threshold=f"{thresholds['health_score_critical']}/100",
+                actual_value=f"{health_score:.1f}/100",
+                action="Review critical alerts in insights report and address high-priority issues immediately",
+            )
+        elif health_score < thresholds["health_score_warning"]:
+            add_alert(
+                "HIGH",
+                "System Health",
+                "Low Health Score",
+                f"Overall system health at {health_score:.1f}/100 - attention required",
+                threshold=f"{thresholds['health_score_warning']}/100",
+                actual_value=f"{health_score:.1f}/100",
+                action="Investigate anomalies and address medium-priority issues",
+            )
+
+        # ========== MODEL PERFORMANCE ALERTS ==========
+        best_model_metrics = model_comparison.get("best_model", {}).get("metrics", {})
+        r_squared = best_model_metrics.get("r_squared", 0)
+
+        if r_squared < thresholds["r_squared_poor"]:
+            add_alert(
+                "MEDIUM",
+                "Predictive Modeling",
+                "Poor Model Performance",
+                f"Best regression model R² at {r_squared:.4f} - predictions may be unreliable",
+                threshold=f"R² > {thresholds['r_squared_poor']}",
+                actual_value=f"R² = {r_squared:.4f}",
+                action="Consider collecting more historical data or exploring alternative modeling approaches",
+            )
+
+        # ========== VALIDATION ALERTS ==========
+        pass_rate = validation_result.get("pass_rate_percent", 100)
+
+        if pass_rate < thresholds["validation_pass_rate_critical"]:
+            add_alert(
+                "CRITICAL",
+                "Data Quality",
+                "Critical Data Quality Issues",
+                f"Data validation pass rate at {pass_rate:.1f}% - major data quality problems",
+                threshold=f"{thresholds['validation_pass_rate_critical']}%",
+                actual_value=f"{pass_rate:.1f}%",
+                action="Review failed validation checks and investigate data source integrity",
+            )
+        elif pass_rate < thresholds["validation_pass_rate_warning"]:
+            add_alert(
+                "HIGH",
+                "Data Quality",
+                "Data Quality Concerns",
+                f"Data validation pass rate at {pass_rate:.1f}% - some data quality issues detected",
+                threshold=f"{thresholds['validation_pass_rate_warning']}%",
+                actual_value=f"{pass_rate:.1f}%",
+                action="Review validation warnings and address data inconsistencies",
+            )
+
+        # ========== ANOMALY DETECTION ALERTS ==========
+        anomalies = comprehensive_analysis.get("anomalies", {})
+        anomaly_count = len(anomalies.get("outliers", [])) + len(
+            anomalies.get("extreme_z_scores", [])
+        )
+
+        if anomaly_count > 0:
+            add_alert(
+                "MEDIUM",
+                "Anomaly Detection",
+                "Anomalies Detected",
+                f"{anomaly_count} anomalies detected in astronaut distribution patterns",
+                actual_value=f"{anomaly_count} anomalies",
+                action="Review anomaly details in comprehensive analysis report",
+            )
+
+        # ========== PREDICTION ALERTS ==========
+        predictions = regression_result.get("predictions", [])
+        if predictions:
+            avg_prediction = sum(p["predicted_astronauts"] for p in predictions) / len(
+                predictions
+            )
+            current_count = calculated_stats.get("total_astronauts", 0)
+
+            if current_count > 0:
+                prediction_change_pct = (
+                    (avg_prediction - current_count) / current_count
+                ) * 100
+
+                if abs(prediction_change_pct) > thresholds["prediction_variance_high"]:
+                    severity = "HIGH" if abs(prediction_change_pct) > 50 else "MEDIUM"
+                    direction = "increase" if prediction_change_pct > 0 else "decrease"
+                    add_alert(
+                        severity,
+                        "Predictive Analysis",
+                        f"Significant Population {direction.title()} Predicted",
+                        f"Model predicts {abs(prediction_change_pct):.1f}% {direction} in astronaut population",
+                        actual_value=f"{prediction_change_pct:+.1f}%",
+                        action=f"Prepare for population {direction} - adjust resource allocation and planning",
+                    )
+
+        # ========== RISK ASSESSMENT ALERTS ==========
+        risks = comprehensive_analysis.get("risk_assessment", {})
+        high_risks = [
+            risk
+            for risk in risks.get("identified_risks", [])
+            if "critical" in risk.lower() or "high" in risk.lower()
+        ]
+
+        for risk in high_risks[:3]:  # Top 3 high risks
+            add_alert(
+                "HIGH",
+                "Risk Assessment",
+                "High Risk Identified",
+                risk,
+                action="Review risk mitigation strategies in comprehensive analysis",
+            )
+
+        # ========== INSIGHTS CRITICAL ALERTS ==========
+        critical_alerts = insights_report.get("critical_alerts", [])
+        for alert_item in critical_alerts[:5]:  # Top 5 critical alerts
+            if alert_item.get("severity") in ["CRITICAL", "HIGH"]:
+                add_alert(
+                    alert_item.get("severity", "MEDIUM"),
+                    "Insights Analysis",
+                    alert_item.get("category", "General"),
+                    alert_item.get("message", "Alert from insights report"),
+                    action="Review insights report for detailed analysis",
+                )
+
+        # ========== POSITIVE NOTIFICATIONS (LOW PRIORITY) ==========
+        if health_score >= 80:
+            add_alert(
+                "LOW",
+                "System Health",
+                "Excellent System Health",
+                f"Overall system health at {health_score:.1f}/100 - all systems nominal",
+                actual_value=f"{health_score:.1f}/100",
+                action="Continue monitoring - no immediate action required",
+            )
+
+        if pass_rate >= 95:
+            add_alert(
+                "LOW",
+                "Data Quality",
+                "Excellent Data Quality",
+                f"Data validation pass rate at {pass_rate:.1f}% - high data integrity",
+                actual_value=f"{pass_rate:.1f}%",
+                action="Maintain current data quality practices",
+            )
+
+        # ========== SORT ALERTS BY PRIORITY ==========
+        alerts.sort(key=lambda x: x["priority"])
+
+        # ========== ALERT SUMMARY STATISTICS ==========
+        alert_counts = {
+            "CRITICAL": sum(1 for a in alerts if a["severity"] == "CRITICAL"),
+            "HIGH": sum(1 for a in alerts if a["severity"] == "HIGH"),
+            "MEDIUM": sum(1 for a in alerts if a["severity"] == "MEDIUM"),
+            "LOW": sum(1 for a in alerts if a["severity"] == "LOW"),
+        }
+
+        # ========== PRINT ALERT DASHBOARD ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " ALERT SUMMARY".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(f"  🔴 CRITICAL: {alert_counts['CRITICAL']:2d} alerts")
+        print(f"  🟠 HIGH:     {alert_counts['HIGH']:2d} alerts")
+        print(f"  🟡 MEDIUM:   {alert_counts['MEDIUM']:2d} alerts")
+        print(f"  🟢 LOW:      {alert_counts['LOW']:2d} alerts")
+        print(f"  📊 TOTAL:    {len(alerts):2d} notifications")
+
+        # ========== PRINT DETAILED ALERTS ==========
+        if alerts:
+            print("\n" + "┌" + "─" * 98 + "┐")
+            print("│" + " DETAILED ALERT NOTIFICATIONS".center(98) + "│")
+            print("└" + "─" * 98 + "┘")
+
+            for i, alert in enumerate(alerts, 1):
+                severity_icon = {
+                    "CRITICAL": "🔴",
+                    "HIGH": "🟠",
+                    "MEDIUM": "🟡",
+                    "LOW": "🟢",
+                }.get(alert["severity"], "⚪")
+
+                print(
+                    f"\n{severity_icon} Alert #{i} - [{alert['severity']}] {alert['category']}"
+                )
+                print(f"   Title: {alert['title']}")
+                print(f"   Message: {alert['message']}")
+
+                if alert.get("threshold"):
+                    print(f"   Threshold: {alert['threshold']}")
+                if alert.get("actual_value"):
+                    print(f"   Actual Value: {alert['actual_value']}")
+                if alert.get("recommended_action"):
+                    print(f"   ⚡ Recommended Action: {alert['recommended_action']}")
+                print(f"   Timestamp: {alert['timestamp']}")
+                print("   " + "─" * 90)
+
+        # ========== NOTIFICATION CHANNELS ==========
+        notification_channels = {
+            "email": {
+                "enabled": False,  # Set to True in production with proper configuration
+                "recipients": ["ops-team@example.com", "data-team@example.com"],
+                "critical_only": False,
+            },
+            "slack": {
+                "enabled": False,  # Set to True in production with Slack webhook
+                "webhook_url": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+                "channels": ["#alerts", "#data-pipeline"],
+                "critical_only": False,
+            },
+            "pagerduty": {
+                "enabled": False,  # Set to True for critical alerts
+                "api_key": "YOUR_PAGERDUTY_API_KEY",
+                "critical_only": True,
+            },
+        }
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " NOTIFICATION CHANNELS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(
+            "  📧 Email Notifications: "
+            + (
+                "✅ Enabled"
+                if notification_channels["email"]["enabled"]
+                else "❌ Disabled (configure to enable)"
+            )
+        )
+        print(
+            "  💬 Slack Notifications: "
+            + (
+                "✅ Enabled"
+                if notification_channels["slack"]["enabled"]
+                else "❌ Disabled (configure to enable)"
+            )
+        )
+        print(
+            "  📟 PagerDuty Alerts:    "
+            + (
+                "✅ Enabled"
+                if notification_channels["pagerduty"]["enabled"]
+                else "❌ Disabled (configure to enable)"
+            )
+        )
+
+        # ========== SIMULATION OF NOTIFICATIONS ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " NOTIFICATION SIMULATION".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print("  ℹ️  In production environment, alerts would be sent to:")
+
+        critical_high_alerts = [
+            a for a in alerts if a["severity"] in ["CRITICAL", "HIGH"]
+        ]
+        if critical_high_alerts:
+            print(
+                f"\n  🚨 {len(critical_high_alerts)} CRITICAL/HIGH alerts would trigger:"
+            )
+            print("     • Email to ops-team@example.com")
+            print("     • Slack message to #alerts channel")
+            print("     • PagerDuty incident (CRITICAL only)")
+
+        medium_low_alerts = [a for a in alerts if a["severity"] in ["MEDIUM", "LOW"]]
+        if medium_low_alerts:
+            print(f"\n  📢 {len(medium_low_alerts)} MEDIUM/LOW alerts would trigger:")
+            print("     • Email digest to data-team@example.com")
+            print("     • Slack message to #data-pipeline channel")
+
+        # ========== ALERT RECOMMENDATIONS ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " TOP RECOMMENDED ACTIONS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Get unique actions from high-priority alerts
+        actions = []
+        for alert in alerts[:10]:  # Top 10 alerts
+            if (
+                alert.get("recommended_action")
+                and alert["recommended_action"] not in actions
+            ):
+                actions.append(alert["recommended_action"])
+
+        for i, action in enumerate(actions[:5], 1):  # Top 5 unique actions
+            print(f"  {i}. {action}")
+
+        # ========== COMPILE RESULTS ==========
+        alert_results = {
+            "notification_metadata": {
+                "generated_at": execution_date,
+                "total_alerts": len(alerts),
+                "alert_counts": alert_counts,
+                "notification_channels": notification_channels,
+            },
+            "alerts": alerts,
+            "thresholds_used": thresholds,
+            "summary": {
+                "highest_severity": alerts[0]["severity"] if alerts else "NONE",
+                "categories_affected": list(set(a["category"] for a in alerts)),
+                "action_required": alert_counts["CRITICAL"] > 0
+                or alert_counts["HIGH"] > 0,
+            },
+        }
+
+        print("\n" + "╔" + "═" * 98 + "╗")
+        print("║" + " ALERT NOTIFICATION SYSTEM COMPLETED".center(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+        print("\n")
+
+        # In production, send notifications here
+        # Example pseudo-code:
+        # if notification_channels["email"]["enabled"]:
+        #     send_email_notifications(alerts, notification_channels["email"]["recipients"])
+        # if notification_channels["slack"]["enabled"]:
+        #     send_slack_notifications(alerts, notification_channels["slack"]["webhook_url"])
+        # if notification_channels["pagerduty"]["enabled"]:
+        #     critical_alerts = [a for a in alerts if a["severity"] == "CRITICAL"]
+        #     send_pagerduty_alerts(critical_alerts, notification_channels["pagerduty"]["api_key"])
+
+        return alert_results
+
+    @task(
+        # Define a dataset outlet for data export
+        outlets=[Dataset("data_export")]
+    )
+    def export_analysis_results(
+        astronaut_list: list[dict],
+        calculated_stats: dict,
+        statistical_methods: dict,
+        comprehensive_analysis: dict,
+        trend_calculations: dict,
+        regression_result: dict,
+        model_comparison: dict,
+        validation_result: dict,
+        insights_report: dict,
+        alert_notifications: dict,
+        **context,
+    ) -> dict:
+        """
+        This task exports all analysis results to JSON and CSV formats for downstream consumption.
+        Creates structured files in /tmp that can be picked up by external systems, data warehouses,
+        or visualization tools.
+        """
+        import json
+
+        execution_date = context.get("ds", "N/A")
+        run_id = context.get("run_id", "unknown")
+
+        print("\n")
+        print("╔" + "═" * 98 + "╗")
+        print("║" + " " * 35 + "DATA EXPORT SYSTEM" + " " * 44 + "║")
+        print("╠" + "═" * 98 + "╣")
+        print("║" + f" Export Date: {execution_date}".ljust(98) + "║")
+        print("║" + f" Run ID: {run_id}".ljust(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+
+        # ========== DEFINE EXPORT DIRECTORY ==========
+        export_dir = "/tmp/astronaut_pipeline_exports"
+        export_timestamp = execution_date.replace("-", "")
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORT CONFIGURATION".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(f"  📁 Export Directory: {export_dir}")
+        print(f"  📅 Export Timestamp: {export_timestamp}")
+        print(f"  🔖 Run ID: {run_id}")
+
+        # ========== PREPARE EXPORT DATA ==========
+        export_manifest = {
+            "export_metadata": {
+                "generated_at": execution_date,
+                "run_id": run_id,
+                "pipeline_version": "1.0",
+                "total_datasets": 16,
+            },
+            "files_exported": [],
+        }
+
+        # ========== EXPORT 1: ASTRONAUT DATA (CSV) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORTING ASTRONAUT DATA".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        astronaut_csv_content = []
+        astronaut_csv_content.append("name,craft,export_date")
+
+        for astronaut in astronaut_list:
+            name = astronaut.get("name", "Unknown")
+            craft = astronaut.get("craft", "Unknown")
+            astronaut_csv_content.append(f'"{name}","{craft}","{execution_date}"')
+
+        astronaut_csv_data = "\n".join(astronaut_csv_content)
+
+        print(f"  ✅ Astronaut data CSV prepared: {len(astronaut_list)} records")
+        print("     Columns: name, craft, export_date")
+
+        # ========== EXPORT 2: STATISTICAL SUMMARY (JSON) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORTING STATISTICAL SUMMARY".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        statistical_summary = {
+            "metadata": {"export_date": execution_date, "run_id": run_id},
+            "basic_statistics": {
+                "total_astronauts": calculated_stats.get("total_astronauts", 0),
+                "spacecraft_count": calculated_stats.get("spacecraft_count", 0),
+                "mean_per_craft": calculated_stats.get("mean_astronauts_per_craft", 0),
+                "median_per_craft": calculated_stats.get(
+                    "median_astronauts_per_craft", 0
+                ),
+                "std_deviation": calculated_stats.get("std_deviation", 0),
+                "variance": calculated_stats.get("variance", 0),
+                "capacity_utilization": calculated_stats.get(
+                    "capacity_utilization_rate", 0
+                ),
+            },
+            "advanced_statistics": {
+                "percentile_25": statistical_methods.get("percentiles", {}).get(
+                    "p25", 0
+                ),
+                "percentile_50": statistical_methods.get("percentiles", {}).get(
+                    "p50", 0
+                ),
+                "percentile_75": statistical_methods.get("percentiles", {}).get(
+                    "p75", 0
+                ),
+                "percentile_95": statistical_methods.get("percentiles", {}).get(
+                    "p95", 0
+                ),
+                "iqr": statistical_methods.get("quartiles", {}).get("iqr", 0),
+                "skewness": statistical_methods.get("distribution_metrics", {}).get(
+                    "skewness", 0
+                ),
+                "kurtosis": statistical_methods.get("distribution_metrics", {}).get(
+                    "kurtosis", 0
+                ),
+            },
+        }
+
+        statistical_summary_json = json.dumps(statistical_summary, indent=2)
+
+        print("  ✅ Statistical summary JSON prepared")
+        print("     Sections: metadata, basic_statistics, advanced_statistics")
+
+        # ========== EXPORT 3: TREND ANALYSIS (CSV) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORTING TREND ANALYSIS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        trend_csv_content = []
+        trend_csv_content.append("metric,value,trend_direction,export_date")
+
+        growth_rate_data = trend_calculations.get("growth_rate", {})
+        momentum_data = trend_calculations.get("momentum_indicators", {})
+        moving_avg_data = trend_calculations.get("moving_averages", {})
+
+        trend_csv_content.append(
+            f'"Growth Rate",{growth_rate_data.get("rate_of_change", 0)},"{growth_rate_data.get("trend_direction", "Unknown")}","{execution_date}"'
+        )
+        trend_csv_content.append(
+            f'"Momentum Score",{momentum_data.get("momentum_score", 0)},"{momentum_data.get("momentum_status", "Unknown")}","{execution_date}"'
+        )
+        trend_csv_content.append(
+            f'"SMA",{moving_avg_data.get("sma", {}).get("value", 0)},"Neutral","{execution_date}"'
+        )
+        trend_csv_content.append(
+            f'"EMA",{moving_avg_data.get("ema", {}).get("value", 0)},"Neutral","{execution_date}"'
+        )
+
+        trend_csv_data = "\n".join(trend_csv_content)
+
+        print(f"  ✅ Trend analysis CSV prepared: {len(trend_csv_content) - 1} metrics")
+        print("     Columns: metric, value, trend_direction, export_date")
+
+        # ========== EXPORT 4: REGRESSION PREDICTIONS (JSON) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORTING REGRESSION PREDICTIONS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        predictions_export = {
+            "metadata": {
+                "export_date": execution_date,
+                "run_id": run_id,
+                "model_type": regression_result.get("model_metadata", {}).get(
+                    "model_type", "Unknown"
+                ),
+            },
+            "model_coefficients": regression_result.get("model_coefficients", {}),
+            "accuracy_metrics": regression_result.get("accuracy_metrics", {}),
+            "predictions": regression_result.get("predictions", []),
+            "best_model": {
+                "name": model_comparison.get("best_model", {}).get("name", "Unknown"),
+                "type": model_comparison.get("best_model", {}).get("type", "Unknown"),
+                "r_squared": model_comparison.get("best_model", {})
+                .get("metrics", {})
+                .get("r_squared", 0),
+                "rmse": model_comparison.get("best_model", {})
+                .get("metrics", {})
+                .get("rmse", 0),
+            },
+        }
+
+        predictions_json = json.dumps(predictions_export, indent=2)
+
+        print("  ✅ Regression predictions JSON prepared")
+        print(f"     Predictions: {len(regression_result.get('predictions', []))}")
+        print(
+            f"     Best Model: {model_comparison.get('best_model', {}).get('name', 'Unknown')}"
+        )
+
+        # ========== EXPORT 5: ALERTS (CSV) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORTING ALERTS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        alerts_csv_content = []
+        alerts_csv_content.append("severity,category,title,message,priority,timestamp")
+
+        for alert in alert_notifications.get("alerts", []):
+            severity = alert.get("severity", "UNKNOWN")
+            category = alert.get("category", "Unknown")
+            title = alert.get("title", "").replace('"', '""')
+            message = alert.get("message", "").replace('"', '""')
+            priority = alert.get("priority", 99)
+            timestamp = alert.get("timestamp", execution_date)
+
+            alerts_csv_content.append(
+                f'"{severity}","{category}","{title}","{message}",{priority},"{timestamp}"'
+            )
+
+        alerts_csv_data = "\n".join(alerts_csv_content)
+
+        print(
+            f"  ✅ Alerts CSV prepared: {len(alert_notifications.get('alerts', []))} alerts"
+        )
+        print("     Columns: severity, category, title, message, priority, timestamp")
+
+        # ========== EXPORT 6: COMPREHENSIVE INSIGHTS (JSON) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORTING COMPREHENSIVE INSIGHTS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        insights_export = {
+            "metadata": {"export_date": execution_date, "run_id": run_id},
+            "health_score": insights_report.get("overall_health_score", 100),
+            "executive_summary": insights_report.get("executive_summary", {}),
+            "key_findings": insights_report.get("key_findings", {}),
+            "critical_alerts": insights_report.get("critical_alerts", []),
+            "opportunities": insights_report.get("opportunities", []),
+            "decision_support": insights_report.get("decision_support", {}),
+            "validation_results": {
+                "overall_status": validation_result.get("overall_status", "Unknown"),
+                "pass_rate_percent": validation_result.get("pass_rate_percent", 0),
+                "total_checks": validation_result.get("total_checks", 0),
+                "passed_checks": validation_result.get("passed_checks", 0),
+                "failed_checks": validation_result.get("failed_checks", 0),
+            },
+        }
+
+        insights_json = json.dumps(insights_export, indent=2)
+
+        print("  ✅ Comprehensive insights JSON prepared")
+        print(
+            f"     Health Score: {insights_report.get('overall_health_score', 100)}/100"
+        )
+        print(
+            f"     Validation Pass Rate: {validation_result.get('pass_rate_percent', 0)}%"
+        )
+
+        # ========== EXPORT 7: MASTER MANIFEST (JSON) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " CREATING EXPORT MANIFEST".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Add file records to manifest
+        export_manifest["files_exported"] = [
+            {
+                "filename": f"astronauts_{export_timestamp}.csv",
+                "format": "CSV",
+                "description": "Current astronaut roster with spacecraft assignments",
+                "record_count": len(astronaut_list),
+                "size_estimate": f"{len(astronaut_csv_data)} bytes",
+            },
+            {
+                "filename": f"statistical_summary_{export_timestamp}.json",
+                "format": "JSON",
+                "description": "Basic and advanced statistical metrics",
+                "size_estimate": f"{len(statistical_summary_json)} bytes",
+            },
+            {
+                "filename": f"trend_analysis_{export_timestamp}.csv",
+                "format": "CSV",
+                "description": "Trend metrics and growth indicators",
+                "record_count": len(trend_csv_content) - 1,
+                "size_estimate": f"{len(trend_csv_data)} bytes",
+            },
+            {
+                "filename": f"predictions_{export_timestamp}.json",
+                "format": "JSON",
+                "description": "Regression model predictions and accuracy metrics",
+                "size_estimate": f"{len(predictions_json)} bytes",
+            },
+            {
+                "filename": f"alerts_{export_timestamp}.csv",
+                "format": "CSV",
+                "description": "System alerts and notifications",
+                "record_count": len(alert_notifications.get("alerts", [])),
+                "size_estimate": f"{len(alerts_csv_data)} bytes",
+            },
+            {
+                "filename": f"insights_{export_timestamp}.json",
+                "format": "JSON",
+                "description": "Comprehensive analysis insights and recommendations",
+                "size_estimate": f"{len(insights_json)} bytes",
+            },
+        ]
+
+        manifest_json = json.dumps(export_manifest, indent=2)
+
+        print(
+            f"  ✅ Export manifest created: {len(export_manifest['files_exported'])} files"
+        )
+
+        # ========== SIMULATED FILE WRITING ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " FILE EXPORT SIMULATION".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print("  ℹ️  In production environment, files would be written to:")
+        print(f"     {export_dir}/")
+        print("")
+
+        for file_info in export_manifest["files_exported"]:
+            print(f"  📄 {file_info['filename']}")
+            print(f"     Format: {file_info['format']}")
+            print(f"     Description: {file_info['description']}")
+            print(f"     Size: {file_info['size_estimate']}")
+            print("")
+
+        # ========== EXPORT DESTINATIONS ==========
+        print("┌" + "─" * 98 + "┐")
+        print("│" + " DOWNSTREAM DESTINATIONS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        destinations = [
+            {
+                "name": "AWS S3",
+                "enabled": False,
+                "path": "s3://astronaut-pipeline-exports/",
+                "description": "Cloud storage for long-term archival",
+            },
+            {
+                "name": "Snowflake Data Warehouse",
+                "enabled": False,
+                "table": "ANALYTICS.ASTRONAUT_METRICS",
+                "description": "Load statistical summaries into data warehouse",
+            },
+            {
+                "name": "PostgreSQL Database",
+                "enabled": False,
+                "connection": "postgres_analytics",
+                "description": "Store time-series data for historical tracking",
+            },
+            {
+                "name": "Tableau/Power BI",
+                "enabled": False,
+                "path": "/shared/astronaut_dashboards/",
+                "description": "Feed visualization dashboards",
+            },
+            {
+                "name": "REST API",
+                "enabled": False,
+                "endpoint": "https://api.example.com/astronaut-data",
+                "description": "POST results to external API consumers",
+            },
+        ]
+
+        for dest in destinations:
+            status = (
+                "✅ Enabled" if dest["enabled"] else "❌ Disabled (configure to enable)"
+            )
+            print(f"\n  📊 {dest['name']}: {status}")
+            print(f"     {dest['description']}")
+            if dest.get("path"):
+                print(f"     Path: {dest['path']}")
+            if dest.get("table"):
+                print(f"     Table: {dest['table']}")
+            if dest.get("connection"):
+                print(f"     Connection: {dest['connection']}")
+            if dest.get("endpoint"):
+                print(f"     Endpoint: {dest['endpoint']}")
+
+        # ========== EXPORT SUMMARY ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " EXPORT SUMMARY".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        total_records = sum(
+            file_info.get("record_count", 0)
+            for file_info in export_manifest["files_exported"]
+        )
+
+        print(f"  📊 Total Files: {len(export_manifest['files_exported'])}")
+        print(f"  📈 Total Records: {total_records}")
+        print("  📁 Export Format: JSON + CSV")
+        print("  ✅ Export Status: Completed Successfully")
+
+        # ========== COMPILE RESULTS ==========
+        export_results = {
+            "export_metadata": export_manifest["export_metadata"],
+            "export_directory": export_dir,
+            "export_timestamp": export_timestamp,
+            "files": export_manifest["files_exported"],
+            "destinations": destinations,
+            "data_content": {
+                "astronaut_csv": astronaut_csv_data,
+                "statistical_summary_json": statistical_summary_json,
+                "trend_csv": trend_csv_data,
+                "predictions_json": predictions_json,
+                "alerts_csv": alerts_csv_data,
+                "insights_json": insights_json,
+                "manifest_json": manifest_json,
+            },
+            "summary": {
+                "total_files": len(export_manifest["files_exported"]),
+                "total_records": total_records,
+                "export_status": "SUCCESS",
+            },
+        }
+
+        print("\n" + "╔" + "═" * 98 + "╗")
+        print("║" + " DATA EXPORT SYSTEM COMPLETED".center(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+        print("\n")
+
+        # In production, write files here
+        # Example pseudo-code:
+        # import os
+        # os.makedirs(export_dir, exist_ok=True)
+        #
+        # with open(f"{export_dir}/astronauts_{export_timestamp}.csv", "w") as f:
+        #     f.write(astronaut_csv_data)
+        #
+        # with open(f"{export_dir}/statistical_summary_{export_timestamp}.json", "w") as f:
+        #     f.write(statistical_summary_json)
+        #
+        # ... (write other files)
+        #
+        # If AWS S3 is enabled:
+        #     s3_client.upload_file(local_file, bucket, key)
+        #
+        # If Snowflake is enabled:
+        #     snowflake_hook.insert_rows(table, rows)
+
+        return export_results
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -3901,6 +4758,32 @@ def example_astronauts():
         calculated_statistics,
         trend_calculations_result,
         insights_report_result,
+    )
+
+    # Generate alert notifications based on thresholds and analysis
+    # (produces alert_notifications Dataset)
+    alert_result = generate_alert_notifications(
+        insights_report_result,
+        regression_result,
+        model_comparison_result,
+        validation_result,
+        comprehensive_analysis_result,
+        calculated_statistics,
+    )
+
+    # Export all analysis results to JSON and CSV formats
+    # (produces data_export Dataset)
+    export_analysis_results(
+        astronaut_list,
+        calculated_statistics,
+        statistical_methods_result,
+        comprehensive_analysis_result,
+        trend_calculations_result,
+        regression_result,
+        model_comparison_result,
+        validation_result,
+        insights_report_result,
+        alert_result,
     )
 
     # Use dynamic task mapping to run the print_astronaut_craft task for each

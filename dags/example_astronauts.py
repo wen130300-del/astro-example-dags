@@ -986,8 +986,10 @@ def example_astronauts():
         timeliness of data, providing a detailed validation report with
         pass/fail status for each check.
         """
+        from datetime import datetime as dt
+
         validation_results = {
-            "validation_timestamp": str(datetime.now()),
+            "validation_timestamp": str(dt.now()),
             "overall_status": "PASS",
             "total_checks": 0,
             "passed_checks": 0,

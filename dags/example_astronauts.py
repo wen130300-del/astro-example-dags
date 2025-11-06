@@ -1583,6 +1583,479 @@ def example_astronauts():
         return trend_calculations
 
     @task(
+        # Define a dataset outlet for insights report
+        outlets=[Dataset("insights_report")]
+    )
+    def generate_insights_report(
+        comprehensive_analysis: dict,
+        trend_calculations: dict,
+        validation_results: dict,
+        correlation_analysis: dict,
+        **context,
+    ) -> dict:
+        """
+        This task generates an executive insights report synthesizing all analysis
+        outputs into actionable business intelligence. It provides key findings,
+        critical alerts, opportunity identification, and decision support recommendations.
+        """
+        from datetime import datetime as dt
+
+        execution_date = context.get("execution_date", dt.now())
+        total_astronauts = context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Extract key metrics from all sources
+        risk_level = comprehensive_analysis.get("risk_assessment", {}).get(
+            "overall_risk_level", "UNKNOWN"
+        )
+        efficiency_score = comprehensive_analysis.get("efficiency_metrics", {}).get(
+            "overall_efficiency_score", 0
+        )
+        anomalies = comprehensive_analysis.get("anomaly_detection", {}).get(
+            "anomalies", []
+        )
+
+        momentum = trend_calculations.get("trend_analysis", {}).get(
+            "momentum_classification", "neutral"
+        )
+        growth_rate = trend_calculations.get("growth_metrics", {}).get(
+            "astronaut_growth_rate_percent", 0
+        )
+        volatility = trend_calculations.get("volatility_analysis", {}).get(
+            "volatility_level", "unknown"
+        )
+
+        data_quality = validation_results.get("pass_rate_percent", 0)
+        validation_results.get("overall_status", "UNKNOWN")
+
+        len(correlation_analysis.get("observational_insights", []))
+
+        # ========== EXECUTIVE SUMMARY ==========
+        executive_summary = {
+            "overall_health_score": 0,
+            "status": "UNKNOWN",
+            "critical_flags": [],
+            "key_highlights": [],
+        }
+
+        # Calculate overall health score (0-100)
+        health_score = 0
+        health_score += (
+            100 - (risk_level == "HIGH") * 30 - (risk_level == "MEDIUM") * 15
+        )
+        health_score += efficiency_score * 0.3
+        health_score += data_quality * 0.2
+        health_score += (50 + growth_rate * 2) * 0.2
+        health_score = max(0, min(100, health_score))
+
+        executive_summary["overall_health_score"] = round(health_score, 2)
+
+        # Determine overall status
+        if health_score >= 80:
+            executive_summary["status"] = "EXCELLENT"
+        elif health_score >= 65:
+            executive_summary["status"] = "GOOD"
+        elif health_score >= 50:
+            executive_summary["status"] = "FAIR"
+        else:
+            executive_summary["status"] = "NEEDS_ATTENTION"
+
+        # Critical flags
+        if risk_level == "HIGH":
+            executive_summary["critical_flags"].append("High operational risk detected")
+        if efficiency_score < 60:
+            executive_summary["critical_flags"].append("Low efficiency score")
+        if data_quality < 70:
+            executive_summary["critical_flags"].append("Data quality concerns")
+        if len(anomalies) > 2:
+            executive_summary["critical_flags"].append(
+                f"{len(anomalies)} anomalies detected"
+            )
+
+        # Key highlights
+        if efficiency_score >= 80:
+            executive_summary["key_highlights"].append(
+                "Excellent operational efficiency"
+            )
+        if momentum == "bullish":
+            executive_summary["key_highlights"].append("Strong positive momentum")
+        if data_quality >= 90:
+            executive_summary["key_highlights"].append("High data quality confidence")
+        if risk_level == "LOW":
+            executive_summary["key_highlights"].append("Low risk profile")
+
+        # ========== KEY FINDINGS ==========
+        key_findings = []
+
+        # Finding 1: Risk assessment
+        key_findings.append(
+            {
+                "category": "Risk Management",
+                "finding": f"Overall risk level is {risk_level}",
+                "impact": "high"
+                if risk_level == "HIGH"
+                else "medium"
+                if risk_level == "MEDIUM"
+                else "low",
+                "actionable": risk_level in ["HIGH", "MEDIUM"],
+            }
+        )
+
+        # Finding 2: Efficiency
+        key_findings.append(
+            {
+                "category": "Operational Efficiency",
+                "finding": f"Efficiency score at {efficiency_score:.1f}%",
+                "impact": "high"
+                if efficiency_score < 60
+                else "medium"
+                if efficiency_score < 80
+                else "low",
+                "actionable": efficiency_score < 80,
+            }
+        )
+
+        # Finding 3: Growth trajectory
+        key_findings.append(
+            {
+                "category": "Growth Trajectory",
+                "finding": f"Growth rate at {growth_rate:+.1f}% with {momentum} momentum",
+                "impact": "high" if abs(growth_rate) > 10 else "medium",
+                "actionable": abs(growth_rate) > 15
+                or momentum in ["bearish", "bullish"],
+            }
+        )
+
+        # Finding 4: Data quality
+        key_findings.append(
+            {
+                "category": "Data Quality",
+                "finding": f"Data validation pass rate: {data_quality:.1f}%",
+                "impact": "high" if data_quality < 70 else "low",
+                "actionable": data_quality < 85,
+            }
+        )
+
+        # ========== CRITICAL ALERTS ==========
+        critical_alerts = []
+
+        # Alert 1: High risk
+        if risk_level == "HIGH":
+            critical_alerts.append(
+                {
+                    "severity": "CRITICAL",
+                    "alert": "High operational risk requires immediate attention",
+                    "recommended_action": "Review and address risk factors within 24 hours",
+                    "priority": 1,
+                }
+            )
+
+        # Alert 2: Anomalies
+        if len(anomalies) >= 3:
+            critical_alerts.append(
+                {
+                    "severity": "HIGH",
+                    "alert": f"{len(anomalies)} anomalies detected in the system",
+                    "recommended_action": "Investigate anomalies and determine root causes",
+                    "priority": 2,
+                }
+            )
+
+        # Alert 3: Low efficiency
+        if efficiency_score < 50:
+            critical_alerts.append(
+                {
+                    "severity": "HIGH",
+                    "alert": "Critically low efficiency score",
+                    "recommended_action": "Initiate efficiency improvement program immediately",
+                    "priority": 1,
+                }
+            )
+
+        # Alert 4: Data quality issues
+        if data_quality < 70:
+            critical_alerts.append(
+                {
+                    "severity": "MEDIUM",
+                    "alert": "Data quality below acceptable threshold",
+                    "recommended_action": "Audit data sources and validation processes",
+                    "priority": 3,
+                }
+            )
+
+        # Alert 5: High volatility
+        if volatility == "high":
+            critical_alerts.append(
+                {
+                    "severity": "MEDIUM",
+                    "alert": "High volatility indicates unstable operations",
+                    "recommended_action": "Implement stabilization measures",
+                    "priority": 2,
+                }
+            )
+
+        # Sort alerts by priority
+        critical_alerts.sort(key=lambda x: x["priority"])
+
+        # ========== OPPORTUNITIES ==========
+        opportunities = []
+
+        # Opportunity 1: Growth potential
+        if growth_rate > 5 and efficiency_score > 70:
+            opportunities.append(
+                {
+                    "opportunity": "Expansion Opportunity",
+                    "description": "Strong growth with good efficiency enables scaling",
+                    "potential_value": "High",
+                    "timeframe": "Near-term",
+                    "effort": "Medium",
+                }
+            )
+
+        # Opportunity 2: Efficiency optimization
+        if efficiency_score >= 60 and efficiency_score < 85:
+            opportunities.append(
+                {
+                    "opportunity": "Efficiency Optimization",
+                    "description": f"Potential to increase efficiency from {efficiency_score:.0f}% to 85%+",
+                    "potential_value": "Medium",
+                    "timeframe": "Medium-term",
+                    "effort": "Medium",
+                }
+            )
+
+        # Opportunity 3: Risk reduction
+        if risk_level == "MEDIUM":
+            opportunities.append(
+                {
+                    "opportunity": "Risk Reduction Initiative",
+                    "description": "Moderate risk level can be lowered with targeted actions",
+                    "potential_value": "Medium",
+                    "timeframe": "Short-term",
+                    "effort": "Low",
+                }
+            )
+
+        # Opportunity 4: Data excellence
+        if data_quality >= 85 and data_quality < 95:
+            opportunities.append(
+                {
+                    "opportunity": "Data Excellence Program",
+                    "description": "Achieve data quality excellence (95%+) for better insights",
+                    "potential_value": "Low",
+                    "timeframe": "Long-term",
+                    "effort": "Low",
+                }
+            )
+
+        # ========== DECISION SUPPORT RECOMMENDATIONS ==========
+        decisions = []
+
+        # Decision 1: Immediate actions
+        immediate_actions = []
+        if critical_alerts:
+            immediate_actions.append("Address critical alerts based on priority")
+        if risk_level == "HIGH":
+            immediate_actions.append("Implement risk mitigation strategies")
+        if efficiency_score < 60:
+            immediate_actions.append("Launch efficiency recovery program")
+
+        if immediate_actions:
+            decisions.append(
+                {
+                    "timeframe": "IMMEDIATE (0-7 days)",
+                    "decision_type": "Tactical",
+                    "actions": immediate_actions,
+                    "expected_impact": "Stabilize operations and address critical issues",
+                }
+            )
+
+        # Decision 2: Short-term actions
+        short_term_actions = []
+        if efficiency_score < 80:
+            short_term_actions.append("Optimize resource allocation")
+        if len(anomalies) > 0:
+            short_term_actions.append("Investigate and resolve anomalies")
+        if volatility in ["medium", "high"]:
+            short_term_actions.append("Reduce operational volatility")
+
+        if short_term_actions:
+            decisions.append(
+                {
+                    "timeframe": "SHORT-TERM (1-4 weeks)",
+                    "decision_type": "Operational",
+                    "actions": short_term_actions,
+                    "expected_impact": "Improve operational metrics and stability",
+                }
+            )
+
+        # Decision 3: Strategic actions
+        strategic_actions = []
+        if growth_rate > 5:
+            strategic_actions.append("Develop expansion plan to capitalize on growth")
+        if opportunities:
+            strategic_actions.append("Evaluate and prioritize identified opportunities")
+        if efficiency_score >= 80:
+            strategic_actions.append("Maintain excellence and explore innovation")
+
+        if strategic_actions:
+            decisions.append(
+                {
+                    "timeframe": "STRATEGIC (1-6 months)",
+                    "decision_type": "Strategic",
+                    "actions": strategic_actions,
+                    "expected_impact": "Position for long-term success and growth",
+                }
+            )
+
+        # ========== COMPILE INSIGHTS REPORT ==========
+        insights_report = {
+            "report_metadata": {
+                "report_date": str(execution_date),
+                "astronaut_count": total_astronauts,
+                "data_sources_integrated": 4,
+            },
+            "executive_summary": executive_summary,
+            "key_findings": key_findings,
+            "critical_alerts": critical_alerts,
+            "opportunities": opportunities,
+            "decision_support": decisions,
+            "performance_indicators": {
+                "health_score": round(health_score, 2),
+                "risk_level": risk_level,
+                "efficiency_score": round(efficiency_score, 2),
+                "data_quality": round(data_quality, 2),
+                "growth_rate": round(growth_rate, 2),
+                "momentum": momentum,
+            },
+        }
+
+        # ========== PRINT INSIGHTS REPORT ==========
+        print("\n")
+        print("=" * 95)
+        print("╔" + "═" * 93 + "╗")
+        print("║" + " " * 30 + "EXECUTIVE INSIGHTS REPORT" + " " * 38 + "║")
+        print("╚" + "═" * 93 + "╝")
+        print("=" * 95)
+
+        print("\n📅 REPORT METADATA:")
+        print(f"  • Report Date: {execution_date}")
+        print(f"  • Astronaut Count: {total_astronauts}")
+        print(
+            f"  • Data Sources: {insights_report['report_metadata']['data_sources_integrated']}"
+        )
+
+        print("\n" + "=" * 95)
+        print("EXECUTIVE SUMMARY")
+        print("=" * 95)
+        status_icon = (
+            "🟢"
+            if executive_summary["status"] == "EXCELLENT"
+            else "🟡"
+            if executive_summary["status"] == "GOOD"
+            else "🟠"
+            if executive_summary["status"] == "FAIR"
+            else "🔴"
+        )
+        print(f"  {status_icon} Overall Status: {executive_summary['status']}")
+        print(f"  • Health Score: {executive_summary['overall_health_score']:.1f}/100")
+
+        if executive_summary["critical_flags"]:
+            print("\n  🚨 CRITICAL FLAGS:")
+            for flag in executive_summary["critical_flags"]:
+                print(f"    ⚠️  {flag}")
+
+        if executive_summary["key_highlights"]:
+            print("\n  ✨ KEY HIGHLIGHTS:")
+            for highlight in executive_summary["key_highlights"]:
+                print(f"    ✓ {highlight}")
+
+        print("\n" + "=" * 95)
+        print("KEY FINDINGS")
+        print("=" * 95)
+        for i, finding in enumerate(key_findings, 1):
+            impact_icon = (
+                "🔴"
+                if finding["impact"] == "high"
+                else "🟡"
+                if finding["impact"] == "medium"
+                else "🟢"
+            )
+            action_flag = " [ACTION REQUIRED]" if finding["actionable"] else ""
+            print(f"\n  {i}. {finding['category']}{action_flag}")
+            print(f"     {impact_icon} {finding['finding']}")
+            print(f"     Impact: {finding['impact'].upper()}")
+
+        if critical_alerts:
+            print("\n" + "=" * 95)
+            print("CRITICAL ALERTS")
+            print("=" * 95)
+            for i, alert in enumerate(critical_alerts, 1):
+                severity_icon = (
+                    "🔴"
+                    if alert["severity"] == "CRITICAL"
+                    else "🟡"
+                    if alert["severity"] == "HIGH"
+                    else "🟠"
+                )
+                print(f"\n  {severity_icon} ALERT {i} ({alert['severity']})")
+                print(f"     Alert: {alert['alert']}")
+                print(f"     Action: {alert['recommended_action']}")
+                print(f"     Priority: {alert['priority']}")
+
+        if opportunities:
+            print("\n" + "=" * 95)
+            print("OPPORTUNITIES")
+            print("=" * 95)
+            for i, opp in enumerate(opportunities, 1):
+                value_icon = (
+                    "💎"
+                    if opp["potential_value"] == "High"
+                    else "💰"
+                    if opp["potential_value"] == "Medium"
+                    else "📊"
+                )
+                print(f"\n  {value_icon} OPPORTUNITY {i}: {opp['opportunity']}")
+                print(f"     Description: {opp['description']}")
+                print(
+                    f"     Value: {opp['potential_value']} | Timeframe: {opp['timeframe']} | Effort: {opp['effort']}"
+                )
+
+        print("\n" + "=" * 95)
+        print("DECISION SUPPORT RECOMMENDATIONS")
+        print("=" * 95)
+        for decision in decisions:
+            timeframe_icon = (
+                "⚡"
+                if "IMMEDIATE" in decision["timeframe"]
+                else "📅"
+                if "SHORT" in decision["timeframe"]
+                else "🎯"
+            )
+            print(f"\n  {timeframe_icon} {decision['timeframe']}")
+            print(f"     Type: {decision['decision_type']}")
+            print("     Actions:")
+            for action in decision["actions"]:
+                print(f"       • {action}")
+            print(f"     Expected Impact: {decision['expected_impact']}")
+
+        print("\n" + "=" * 95)
+        print("PERFORMANCE INDICATORS SUMMARY")
+        print("=" * 95)
+        print(f"  • Health Score: {health_score:.1f}/100")
+        print(f"  • Risk Level: {risk_level}")
+        print(f"  • Efficiency: {efficiency_score:.1f}%")
+        print(f"  • Data Quality: {data_quality:.1f}%")
+        print(f"  • Growth Rate: {growth_rate:+.1f}%")
+        print(f"  • Momentum: {momentum.replace('_', ' ').title()}")
+
+        print("\n" + "=" * 95)
+        print("END OF EXECUTIVE INSIGHTS REPORT")
+        print("=" * 95)
+        print("\n")
+
+        return insights_report
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -2453,12 +2926,21 @@ def example_astronauts():
     )
 
     # Validate data quality across all sources (produces data_quality_validation Dataset)
-    validate_data_quality(
+    validation_result = validate_data_quality(
         astronaut_list,
         weather_info,
         calculated_statistics,
         correlation_result,
         astronaut_statistics,
+    )
+
+    # Generate executive insights report synthesizing all analysis
+    # (produces insights_report Dataset)
+    generate_insights_report(
+        comprehensive_analysis_result,
+        trend_calculations_result,
+        validation_result,
+        correlation_result,
     )
 
     # Generate comprehensive summary report combining all data sources

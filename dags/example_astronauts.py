@@ -502,6 +502,258 @@ def example_astronauts():
         return calculated_stats
 
     @task(
+        # Define a dataset outlet for statistical methods results
+        outlets=[Dataset("statistical_methods")]
+    )
+    def perform_statistical_methods(
+        astronauts: list[dict], calculated_stats: dict, **context
+    ) -> dict:
+        """
+        This task performs advanced statistical methods including percentile analysis,
+        z-scores, quartile calculations, interquartile range, skewness detection,
+        and distribution testing on astronaut data.
+        """
+        import math
+
+        # Get astronaut count
+        context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Collect spacecraft crew counts
+        spacecraft_counts = {}
+        for person in astronauts:
+            craft = person["craft"]
+            spacecraft_counts[craft] = spacecraft_counts.get(craft, 0) + 1
+
+        counts_list = list(spacecraft_counts.values())
+        sorted(counts_list)
+        n = len(counts_list)
+
+        if n == 0:
+            # Return empty results if no data
+            return {"error": "No data available for statistical analysis"}
+
+        # Extract basic stats from calculated_stats
+        mean = calculated_stats.get("central_tendency", {}).get(
+            "mean_astronauts_per_craft", 0
+        )
+        std_dev = calculated_stats.get("variability_measures", {}).get(
+            "standard_deviation", 0
+        )
+        calculated_stats.get("variability_measures", {}).get("variance", 0)
+
+        # ========== PERCENTILE ANALYSIS ==========
+        def calculate_percentile(data, percentile):
+            """Calculate percentile using linear interpolation"""
+            if not data:
+                return 0
+            sorted_data = sorted(data)
+            k = (len(sorted_data) - 1) * percentile / 100
+            f = math.floor(k)
+            c = math.ceil(k)
+            if f == c:
+                return sorted_data[int(k)]
+            d0 = sorted_data[int(f)] * (c - k)
+            d1 = sorted_data[int(c)] * (k - f)
+            return d0 + d1
+
+        p25 = calculate_percentile(counts_list, 25)
+        p50 = calculate_percentile(counts_list, 50)  # Median
+        p75 = calculate_percentile(counts_list, 75)
+        p90 = calculate_percentile(counts_list, 90)
+        p95 = calculate_percentile(counts_list, 95)
+
+        # ========== QUARTILE ANALYSIS ==========
+        q1 = p25
+        q2 = p50
+        q3 = p75
+        iqr = q3 - q1  # Interquartile Range
+
+        # Outlier detection using IQR method
+        lower_fence = q1 - 1.5 * iqr
+        upper_fence = q3 + 1.5 * iqr
+        outliers = [x for x in counts_list if x < lower_fence or x > upper_fence]
+
+        # ========== Z-SCORE ANALYSIS ==========
+        z_scores = {}
+        for craft, count in spacecraft_counts.items():
+            if std_dev > 0:
+                z_score = (count - mean) / std_dev
+                z_scores[craft] = round(z_score, 3)
+            else:
+                z_scores[craft] = 0
+
+        # ========== SKEWNESS CALCULATION ==========
+        # Pearson's moment coefficient of skewness
+        if std_dev > 0 and n > 0:
+            skewness = sum(((x - mean) / std_dev) ** 3 for x in counts_list) / n
+        else:
+            skewness = 0
+
+        # Interpret skewness
+        if abs(skewness) < 0.5:
+            skewness_interpretation = "approximately symmetric"
+        elif skewness > 0:
+            skewness_interpretation = "positively skewed (right tail)"
+        else:
+            skewness_interpretation = "negatively skewed (left tail)"
+
+        # ========== KURTOSIS CALCULATION ==========
+        # Excess kurtosis (normal distribution has kurtosis of 0)
+        if std_dev > 0 and n > 0:
+            kurtosis = (sum(((x - mean) / std_dev) ** 4 for x in counts_list) / n) - 3
+        else:
+            kurtosis = 0
+
+        # Interpret kurtosis
+        if abs(kurtosis) < 0.5:
+            kurtosis_interpretation = "mesokurtic (normal-like)"
+        elif kurtosis > 0:
+            kurtosis_interpretation = "leptokurtic (heavy tails)"
+        else:
+            kurtosis_interpretation = "platykurtic (light tails)"
+
+        # ========== RANGE AND SPREAD ANALYSIS ==========
+        data_range = max(counts_list) - min(counts_list) if counts_list else 0
+        mid_range = (max(counts_list) + min(counts_list)) / 2 if counts_list else 0
+
+        # Coefficient of quartile deviation
+        coeff_quartile_dev = (q3 - q1) / (q3 + q1) if q1 + q3 > 0 else 0
+
+        # ========== DISTRIBUTION TESTING ==========
+        # Check for uniform distribution (all values are equal)
+        is_uniform = len(set(counts_list)) == 1 if counts_list else False
+
+        # Check for normal distribution indicators
+        normal_indicators = {
+            "mean_median_close": abs(mean - p50) < std_dev * 0.1
+            if std_dev > 0
+            else True,
+            "skewness_near_zero": abs(skewness) < 0.5,
+            "kurtosis_near_zero": abs(kurtosis) < 0.5,
+        }
+        likely_normal = all(normal_indicators.values())
+
+        # ========== COMPILE RESULTS ==========
+        statistical_methods_results = {
+            "percentile_analysis": {
+                "p25": round(p25, 2),
+                "p50_median": round(p50, 2),
+                "p75": round(p75, 2),
+                "p90": round(p90, 2),
+                "p95": round(p95, 2),
+            },
+            "quartile_analysis": {
+                "q1_25th": round(q1, 2),
+                "q2_median": round(q2, 2),
+                "q3_75th": round(q3, 2),
+                "iqr": round(iqr, 2),
+                "lower_fence": round(lower_fence, 2),
+                "upper_fence": round(upper_fence, 2),
+                "outliers": outliers,
+                "outlier_count": len(outliers),
+            },
+            "z_score_analysis": {
+                "by_spacecraft": z_scores,
+                "max_z_score": round(max(z_scores.values()), 3) if z_scores else 0,
+                "min_z_score": round(min(z_scores.values()), 3) if z_scores else 0,
+            },
+            "shape_measures": {
+                "skewness": round(skewness, 4),
+                "skewness_interpretation": skewness_interpretation,
+                "kurtosis": round(kurtosis, 4),
+                "kurtosis_interpretation": kurtosis_interpretation,
+            },
+            "spread_measures": {
+                "range": data_range,
+                "mid_range": round(mid_range, 2),
+                "iqr": round(iqr, 2),
+                "coefficient_of_quartile_deviation": round(coeff_quartile_dev, 4),
+            },
+            "distribution_tests": {
+                "is_uniform": is_uniform,
+                "likely_normal_distribution": likely_normal,
+                "normal_indicators": normal_indicators,
+            },
+        }
+
+        # ========== PRINT DETAILED REPORT ==========
+        print("=" * 80)
+        print("ADVANCED STATISTICAL METHODS ANALYSIS")
+        print("=" * 80)
+
+        print("\n📊 PERCENTILE ANALYSIS:")
+        print(f"  • 25th Percentile (P25): {p25:.2f}")
+        print(f"  • 50th Percentile (Median): {p50:.2f}")
+        print(f"  • 75th Percentile (P75): {p75:.2f}")
+        print(f"  • 90th Percentile (P90): {p90:.2f}")
+        print(f"  • 95th Percentile (P95): {p95:.2f}")
+
+        print("\n📦 QUARTILE & OUTLIER ANALYSIS:")
+        print(f"  • Q1 (25th): {q1:.2f}")
+        print(f"  • Q2 (Median): {q2:.2f}")
+        print(f"  • Q3 (75th): {q3:.2f}")
+        print(f"  • IQR (Interquartile Range): {iqr:.2f}")
+        print(f"  • Lower Fence: {lower_fence:.2f}")
+        print(f"  • Upper Fence: {upper_fence:.2f}")
+        print(f"  • Outliers Detected: {len(outliers)}")
+        if outliers:
+            print(f"    Values: {outliers}")
+
+        print("\n📈 Z-SCORE ANALYSIS (Standard Deviations from Mean):")
+        for craft, z in sorted(z_scores.items(), key=lambda x: x[1], reverse=True):
+            interpretation = ""
+            if abs(z) > 2:
+                interpretation = " (unusual)"
+            elif abs(z) > 1:
+                interpretation = " (moderate)"
+            print(f"  • {craft}: {z:+.3f}{interpretation}")
+
+        print("\n🎭 DISTRIBUTION SHAPE:")
+        print(f"  • Skewness: {skewness:.4f} ({skewness_interpretation})")
+        print(f"  • Kurtosis: {kurtosis:.4f} ({kurtosis_interpretation})")
+
+        print("\n📏 SPREAD MEASURES:")
+        print(f"  • Range: {data_range}")
+        print(f"  • Mid-Range: {mid_range:.2f}")
+        print(f"  • IQR: {iqr:.2f}")
+        print(f"  • Coefficient of Quartile Deviation: {coeff_quartile_dev:.4f}")
+
+        print("\n🧪 DISTRIBUTION TESTS:")
+        print(f"  • Uniform Distribution: {'Yes' if is_uniform else 'No'}")
+        print(f"  • Likely Normal Distribution: {'Yes' if likely_normal else 'No'}")
+        if not likely_normal:
+            print("    Indicators:")
+            for indicator, value in normal_indicators.items():
+                status = "✓" if value else "✗"
+                print(f"      {status} {indicator.replace('_', ' ').title()}")
+
+        print("\n💡 STATISTICAL INSIGHTS:")
+        if len(outliers) > 0:
+            print(
+                f"  • {len(outliers)} outlier(s) detected - some spacecraft have unusual crew sizes"
+            )
+        else:
+            print("  • No outliers detected - crew distribution is consistent")
+
+        if likely_normal:
+            print(
+                "  • Data follows normal distribution - crew allocation is well-balanced"
+            )
+        else:
+            print(
+                "  • Data deviates from normal distribution - varied mission requirements"
+            )
+
+        if abs(skewness) > 0.5:
+            print(
+                f"  • Distribution is skewed - crew sizes tend toward {'higher' if skewness > 0 else 'lower'} values"
+            )
+
+        print("=" * 80)
+
+        return statistical_methods_results
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -1345,6 +1597,9 @@ def example_astronauts():
 
     # Calculate advanced statistics (produces calculated_statistics Dataset)
     calculated_statistics = calculate_astronauts_stats(astronaut_list)
+
+    # Perform advanced statistical methods analysis (produces statistical_methods Dataset)
+    perform_statistical_methods(astronaut_list, calculated_statistics)
 
     # Fetch weather data independently (produces weather_data Dataset)
     weather_info = get_weather_data()

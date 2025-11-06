@@ -4713,7 +4713,7 @@ def example_astronauts():
     )
 
     # Compare multiple regression models and select best (produces model_comparison Dataset)
-    compare_regression_models(
+    model_comparison_result = compare_regression_models(
         astronaut_list,
         calculated_statistics,
         trend_calculations_result,

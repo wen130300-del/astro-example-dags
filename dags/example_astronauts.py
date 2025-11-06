@@ -78,6 +78,68 @@ def example_astronauts():
 
         return summary
 
+    @task(
+        # Define a third dataset outlet for aggregated statistics
+        outlets=[Dataset("astronaut_statistics")]
+    )
+    def aggregate_astronaut_data(astronauts: list[dict], **context) -> dict:
+        """
+        This task processes astronaut data and creates comprehensive statistics
+        including total count, spacecraft distribution, unique crafts, and
+        name analysis. Returns a dictionary with all calculated statistics.
+        """
+        # Get total number from XCom (pushed by get_astronauts task)
+        total_astronauts = context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Calculate spacecraft statistics
+        spacecraft_distribution = {}
+        unique_crafts = set()
+        astronaut_names = []
+
+        for person in astronauts:
+            craft = person["craft"]
+            name = person["name"]
+            spacecraft_distribution[craft] = spacecraft_distribution.get(craft, 0) + 1
+            unique_crafts.add(craft)
+            astronaut_names.append(name)
+
+        # Calculate additional statistics
+        stats = {
+            "total_astronauts": total_astronauts,
+            "unique_spacecraft_count": len(unique_crafts),
+            "spacecraft_list": list(unique_crafts),
+            "spacecraft_distribution": spacecraft_distribution,
+            "astronaut_count_verified": len(astronauts),
+            "average_per_craft": round(len(astronauts) / len(unique_crafts), 2)
+            if unique_crafts
+            else 0,
+            "most_populated_craft": max(
+                spacecraft_distribution.items(), key=lambda x: x[1]
+            )[0]
+            if spacecraft_distribution
+            else None,
+            "astronaut_names": astronaut_names,
+        }
+
+        # Print statistics
+        print("=" * 50)
+        print("ASTRONAUT STATISTICS")
+        print("=" * 50)
+        print(f"Total Astronauts in Space: {stats['total_astronauts']}")
+        print(f"Unique Spacecraft: {stats['unique_spacecraft_count']}")
+        print(f"Average Astronauts per Craft: {stats['average_per_craft']}")
+        print(f"\nMost Populated Craft: {stats['most_populated_craft']}")
+        print(
+            f"  ({spacecraft_distribution[stats['most_populated_craft']]} astronauts)"
+        )
+        print("\nSpacecraft Distribution:")
+        for craft, count in spacecraft_distribution.items():
+            percentage = (count / total_astronauts) * 100
+            print(f"  {craft}: {count} ({percentage:.1f}%)")
+        print("=" * 50)
+
+        return stats
+
     @task
     def print_astronaut_craft(greeting: str, person_in_space: dict) -> None:
         """
@@ -96,6 +158,9 @@ def example_astronauts():
 
     # Summarize spacecraft data (produces spacecraft_summary Dataset)
     summarize_spacecraft(astronaut_list)
+
+    # Aggregate astronaut data and create statistics (produces astronaut_statistics Dataset)
+    aggregate_astronaut_data(astronaut_list)
 
     # Use dynamic task mapping to run the print_astronaut_craft task for each
     # Astronaut in space

@@ -140,6 +140,200 @@ def example_astronauts():
 
         return stats
 
+    @task(
+        # Define a dataset outlet for weather data
+        outlets=[Dataset("weather_data")]
+    )
+    def get_weather_data() -> dict:
+        """
+        This task fetches weather data from Open-Meteo API (free, no API key required).
+        Uses coordinates for Houston, TX (NASA Johnson Space Center) to get relevant
+        weather data. Returns weather metrics that will be correlated with astronaut data.
+        """
+        # Houston, TX coordinates (NASA Johnson Space Center)
+        latitude = 29.5583
+        longitude = -95.0853
+
+        # Fetch current weather data from Open-Meteo API
+        url = f"https://api.open-meteo.com/v1/forecast?latitude={latitude}&longitude={longitude}&current=temperature_2m,relative_humidity_2m,wind_speed_10m,pressure_msl,cloud_cover&timezone=America/Chicago"
+
+        try:
+            response = requests.get(url, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+
+            weather_data = {
+                "location": "Houston, TX (NASA JSC)",
+                "latitude": latitude,
+                "longitude": longitude,
+                "temperature_celsius": data["current"]["temperature_2m"],
+                "humidity_percent": data["current"]["relative_humidity_2m"],
+                "wind_speed_kmh": data["current"]["wind_speed_10m"],
+                "pressure_hpa": data["current"]["pressure_msl"],
+                "cloud_cover_percent": data["current"]["cloud_cover"],
+                "timestamp": data["current"]["time"],
+            }
+
+            print("=" * 50)
+            print("WEATHER DATA (NASA Johnson Space Center)")
+            print("=" * 50)
+            print(f"Location: {weather_data['location']}")
+            print(f"Temperature: {weather_data['temperature_celsius']}°C")
+            print(f"Humidity: {weather_data['humidity_percent']}%")
+            print(f"Wind Speed: {weather_data['wind_speed_kmh']} km/h")
+            print(f"Pressure: {weather_data['pressure_hpa']} hPa")
+            print(f"Cloud Cover: {weather_data['cloud_cover_percent']}%")
+            print(f"Timestamp: {weather_data['timestamp']}")
+            print("=" * 50)
+
+            return weather_data
+
+        except Exception as e:
+            print(f"Error fetching weather data: {e}")
+            # Return default data if API fails
+            return {
+                "location": "Houston, TX (NASA JSC)",
+                "latitude": latitude,
+                "longitude": longitude,
+                "temperature_celsius": 0,
+                "humidity_percent": 0,
+                "wind_speed_kmh": 0,
+                "pressure_hpa": 0,
+                "cloud_cover_percent": 0,
+                "timestamp": "N/A",
+                "error": str(e),
+            }
+
+    @task(
+        # Define a dataset outlet for correlation analysis results
+        outlets=[Dataset("correlation_analysis")]
+    )
+    def analyze_correlation(astronaut_stats: dict, weather_data: dict) -> dict:
+        """
+        This task analyzes the correlation between astronaut data and weather data.
+        While these datasets are inherently independent, this demonstrates how to
+        combine multiple data sources and perform comparative analysis.
+        """
+        # Extract key metrics
+        total_astronauts = astronaut_stats.get("total_astronauts", 0)
+        unique_spacecraft = astronaut_stats.get("unique_spacecraft_count", 0)
+        avg_per_craft = astronaut_stats.get("average_per_craft", 0)
+
+        temperature = weather_data.get("temperature_celsius", 0)
+        humidity = weather_data.get("humidity_percent", 0)
+        wind_speed = weather_data.get("wind_speed_kmh", 0)
+        pressure = weather_data.get("pressure_hpa", 0)
+
+        # Calculate correlation metrics and insights
+        # Note: These are observational correlations for demonstration purposes
+        analysis = {
+            "data_sources": {
+                "astronaut_data_timestamp": "current",
+                "weather_data_timestamp": weather_data.get("timestamp", "N/A"),
+                "weather_location": weather_data.get("location", "N/A"),
+            },
+            "astronaut_metrics": {
+                "total_astronauts_in_space": total_astronauts,
+                "unique_spacecraft": unique_spacecraft,
+                "average_per_craft": avg_per_craft,
+                "spacecraft_distribution": astronaut_stats.get(
+                    "spacecraft_distribution", {}
+                ),
+            },
+            "weather_metrics": {
+                "temperature_celsius": temperature,
+                "humidity_percent": humidity,
+                "wind_speed_kmh": wind_speed,
+                "pressure_hpa": pressure,
+                "cloud_cover_percent": weather_data.get("cloud_cover_percent", 0),
+            },
+            "observational_insights": [],
+            "data_quality_score": 0,
+        }
+
+        # Generate insights based on data patterns
+        insights = []
+
+        # Temperature insights
+        if temperature > 25:
+            insights.append(
+                f"Ground temperature is high ({temperature}°C) - comfortable conditions at JSC"
+            )
+        elif temperature < 10:
+            insights.append(
+                f"Ground temperature is low ({temperature}°C) - cold conditions at JSC"
+            )
+
+        # Astronaut count insights
+        if total_astronauts > 10:
+            insights.append(
+                f"High astronaut activity: {total_astronauts} people currently in space"
+            )
+        elif total_astronauts < 5:
+            insights.append(
+                f"Low astronaut activity: Only {total_astronauts} people in space"
+            )
+
+        # Pressure insights (space missions can be affected by weather at launch sites)
+        if pressure > 1013:
+            insights.append(
+                f"High atmospheric pressure ({pressure} hPa) - stable launch conditions"
+            )
+        elif pressure < 1000:
+            insights.append(
+                f"Low atmospheric pressure ({pressure} hPa) - potential weather system"
+            )
+
+        # Spacecraft diversity insight
+        if unique_spacecraft > 2:
+            insights.append(
+                f"High spacecraft diversity: {unique_spacecraft} different craft types in use"
+            )
+
+        # Calculate data quality score (0-100)
+        quality_score = 100
+        if weather_data.get("error"):
+            quality_score -= 50
+        if total_astronauts == 0:
+            quality_score -= 30
+
+        analysis["observational_insights"] = insights
+        analysis["data_quality_score"] = quality_score
+
+        # Print comprehensive correlation analysis
+        print("=" * 70)
+        print("CORRELATION ANALYSIS: ASTRONAUT DATA & WEATHER DATA")
+        print("=" * 70)
+        print("\n📊 ASTRONAUT METRICS:")
+        print(f"  • Total Astronauts in Space: {total_astronauts}")
+        print(f"  • Unique Spacecraft: {unique_spacecraft}")
+        print(f"  • Average per Craft: {avg_per_craft}")
+
+        print("\n🌦️  WEATHER METRICS (NASA JSC):")
+        print(f"  • Temperature: {temperature}°C")
+        print(f"  • Humidity: {humidity}%")
+        print(f"  • Wind Speed: {wind_speed} km/h")
+        print(f"  • Pressure: {pressure} hPa")
+
+        print("\n💡 OBSERVATIONAL INSIGHTS:")
+        for i, insight in enumerate(insights, 1):
+            print(f"  {i}. {insight}")
+
+        print(f"\n✅ Data Quality Score: {quality_score}/100")
+
+        print("\n📝 ANALYSIS NOTES:")
+        print(
+            "  • Astronaut count and weather are independent but both monitored by NASA"
+        )
+        print(
+            "  • Weather conditions affect launch windows and mission control operations"
+        )
+        print("  • This analysis demonstrates multi-source data integration in Airflow")
+
+        print("=" * 70)
+
+        return analysis
+
     @task
     def print_astronaut_craft(greeting: str, person_in_space: dict) -> None:
         """
@@ -156,11 +350,18 @@ def example_astronauts():
     # Define dependencies and task flow
     astronaut_list = get_astronauts()
 
+    # Parallel data processing tasks
     # Summarize spacecraft data (produces spacecraft_summary Dataset)
     summarize_spacecraft(astronaut_list)
 
     # Aggregate astronaut data and create statistics (produces astronaut_statistics Dataset)
-    aggregate_astronaut_data(astronaut_list)
+    astronaut_statistics = aggregate_astronaut_data(astronaut_list)
+
+    # Fetch weather data independently (produces weather_data Dataset)
+    weather_info = get_weather_data()
+
+    # Analyze correlation between astronaut and weather data (produces correlation_analysis Dataset)
+    analyze_correlation(astronaut_statistics, weather_info)
 
     # Use dynamic task mapping to run the print_astronaut_craft task for each
     # Astronaut in space

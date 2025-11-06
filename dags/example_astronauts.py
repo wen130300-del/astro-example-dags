@@ -1896,6 +1896,335 @@ def example_astronauts():
         return insights_report
 
     @task(
+        # Define a dataset outlet for performance dashboard
+        outlets=[Dataset("performance_dashboard")]
+    )
+    def generate_performance_dashboard(
+        astronaut_stats: dict,
+        calculated_stats: dict,
+        trend_calculations: dict,
+        insights_report: dict,
+        **context,
+    ) -> dict:
+        """
+        This task generates a performance dashboard with visual KPIs, trend indicators,
+        and real-time metrics display. Provides at-a-glance operational status with
+        color-coded indicators and simplified metrics for monitoring.
+        """
+        from datetime import datetime as dt
+
+        execution_date = context.get("execution_date", dt.now())
+        total_astronauts = context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Extract key metrics
+        spacecraft_count = astronaut_stats.get("unique_spacecraft_count", 0)
+        avg_per_craft = calculated_stats.get("central_tendency", {}).get(
+            "mean_astronauts_per_craft", 0
+        )
+        capacity_utilization = calculated_stats.get("capacity_metrics", {}).get(
+            "current_utilization_percent", 0
+        )
+        distribution_pattern = calculated_stats.get("distribution_analysis", {}).get(
+            "pattern", "unknown"
+        )
+
+        growth_rate = trend_calculations.get("growth_metrics", {}).get(
+            "astronaut_growth_rate_percent", 0
+        )
+        momentum = trend_calculations.get("trend_analysis", {}).get(
+            "momentum_classification", "neutral"
+        )
+        volatility = trend_calculations.get("volatility_analysis", {}).get(
+            "volatility_level", "unknown"
+        )
+
+        health_score = insights_report.get("performance_indicators", {}).get(
+            "health_score", 0
+        )
+        status = insights_report.get("executive_summary", {}).get("status", "UNKNOWN")
+
+        # ========== KPI CALCULATIONS ==========
+        kpis = {
+            "astronaut_count": {
+                "value": total_astronauts,
+                "label": "Total Astronauts",
+                "unit": "crew",
+                "trend": "up"
+                if growth_rate > 0
+                else "down"
+                if growth_rate < 0
+                else "stable",
+                "status": "good" if total_astronauts >= 5 else "warning",
+            },
+            "spacecraft_count": {
+                "value": spacecraft_count,
+                "label": "Active Spacecraft",
+                "unit": "craft",
+                "trend": "stable",
+                "status": "good" if spacecraft_count >= 2 else "warning",
+            },
+            "capacity_utilization": {
+                "value": round(capacity_utilization, 1),
+                "label": "Capacity Utilization",
+                "unit": "%",
+                "trend": "up" if growth_rate > 0 else "stable",
+                "status": "good"
+                if 40 <= capacity_utilization <= 80
+                else "warning"
+                if capacity_utilization < 90
+                else "critical",
+            },
+            "health_score": {
+                "value": round(health_score, 1),
+                "label": "System Health",
+                "unit": "/100",
+                "trend": "stable",
+                "status": "good"
+                if health_score >= 80
+                else "warning"
+                if health_score >= 60
+                else "critical",
+            },
+            "avg_crew_per_craft": {
+                "value": round(avg_per_craft, 1),
+                "label": "Avg Crew/Craft",
+                "unit": "crew",
+                "trend": "stable",
+                "status": "good",
+            },
+        }
+
+        # ========== TREND INDICATORS ==========
+        trend_indicators = {
+            "growth_momentum": {
+                "label": "Growth Momentum",
+                "value": momentum.replace("_", " ").title(),
+                "indicator": "🚀"
+                if momentum == "bullish"
+                else "⚠️"
+                if momentum == "bearish"
+                else "📊",
+                "color": "green"
+                if momentum in ["bullish", "slightly_bullish"]
+                else "red"
+                if momentum in ["bearish", "slightly_bearish"]
+                else "yellow",
+            },
+            "growth_rate": {
+                "label": "Growth Rate",
+                "value": f"{growth_rate:+.1f}%",
+                "indicator": "📈"
+                if growth_rate > 0
+                else "📉"
+                if growth_rate < 0
+                else "➡️",
+                "color": "green"
+                if growth_rate > 5
+                else "red"
+                if growth_rate < -5
+                else "yellow",
+            },
+            "volatility": {
+                "label": "Volatility",
+                "value": volatility.title(),
+                "indicator": "🟢"
+                if volatility == "low"
+                else "🟡"
+                if volatility == "medium"
+                else "🔴",
+                "color": "green"
+                if volatility == "low"
+                else "yellow"
+                if volatility == "medium"
+                else "red",
+            },
+            "distribution": {
+                "label": "Distribution Pattern",
+                "value": distribution_pattern.replace("_", " ").title(),
+                "indicator": "✅" if distribution_pattern == "uniform" else "⚠️",
+                "color": "green" if distribution_pattern == "uniform" else "yellow",
+            },
+        }
+
+        # ========== STATUS INDICATORS ==========
+        status_indicators = {
+            "overall_status": {
+                "label": "Overall Status",
+                "value": status,
+                "indicator": "🟢"
+                if status == "EXCELLENT"
+                else "🟡"
+                if status == "GOOD"
+                else "🟠"
+                if status == "FAIR"
+                else "🔴",
+                "description": "System operational health",
+            },
+            "operational_efficiency": {
+                "label": "Operational Efficiency",
+                "value": f"{capacity_utilization:.0f}%",
+                "indicator": "🟢"
+                if 40 <= capacity_utilization <= 80
+                else "🟡"
+                if capacity_utilization < 90
+                else "🔴",
+                "description": "Resource utilization level",
+            },
+            "crew_allocation": {
+                "label": "Crew Allocation",
+                "value": distribution_pattern.replace("_", " ").title(),
+                "indicator": "🟢" if distribution_pattern == "uniform" else "🟡",
+                "description": "Distribution across spacecraft",
+            },
+        }
+
+        # ========== ALERTS AND NOTIFICATIONS ==========
+        alerts = []
+        critical_alerts = insights_report.get("critical_alerts", [])
+        if critical_alerts:
+            for alert in critical_alerts[:3]:  # Top 3 alerts
+                alerts.append(
+                    {
+                        "severity": alert.get("severity", "INFO"),
+                        "message": alert.get("alert", ""),
+                        "priority": alert.get("priority", 5),
+                    }
+                )
+
+        # ========== QUICK STATS ==========
+        quick_stats = {
+            "timestamp": str(execution_date),
+            "astronauts_in_space": total_astronauts,
+            "spacecraft_active": spacecraft_count,
+            "capacity_used": f"{capacity_utilization:.1f}%",
+            "health_score": f"{health_score:.1f}/100",
+            "growth_rate": f"{growth_rate:+.1f}%",
+            "status": status,
+        }
+
+        # ========== COMPILE DASHBOARD ==========
+        dashboard = {
+            "dashboard_metadata": {
+                "generated_at": str(execution_date),
+                "dashboard_version": "1.0",
+                "refresh_interval": "daily",
+            },
+            "kpis": kpis,
+            "trend_indicators": trend_indicators,
+            "status_indicators": status_indicators,
+            "alerts": alerts,
+            "quick_stats": quick_stats,
+        }
+
+        # ========== PRINT PERFORMANCE DASHBOARD ==========
+        print("\n")
+        print("╔" + "═" * 98 + "╗")
+        print("║" + " " * 35 + "PERFORMANCE DASHBOARD" + " " * 42 + "║")
+        print("╠" + "═" * 98 + "╣")
+        print("║" + f" Generated: {execution_date}".ljust(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " KEY PERFORMANCE INDICATORS (KPIs)".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Display KPIs in a grid-like format
+        kpi_list = list(kpis.items())
+        for i in range(0, len(kpi_list), 2):
+            left_key, left_kpi = kpi_list[i]
+
+            # Left KPI
+            status_icon = (
+                "🟢"
+                if left_kpi["status"] == "good"
+                else "🟡"
+                if left_kpi["status"] == "warning"
+                else "🔴"
+            )
+            trend_icon = (
+                "↗"
+                if left_kpi["trend"] == "up"
+                else "↘"
+                if left_kpi["trend"] == "down"
+                else "→"
+            )
+            left_text = f"  {status_icon} {left_kpi['label']}: {left_kpi['value']}{left_kpi['unit']} {trend_icon}"
+
+            # Right KPI (if exists)
+            if i + 1 < len(kpi_list):
+                right_key, right_kpi = kpi_list[i + 1]
+                r_status_icon = (
+                    "🟢"
+                    if right_kpi["status"] == "good"
+                    else "🟡"
+                    if right_kpi["status"] == "warning"
+                    else "🔴"
+                )
+                r_trend_icon = (
+                    "↗"
+                    if right_kpi["trend"] == "up"
+                    else "↘"
+                    if right_kpi["trend"] == "down"
+                    else "→"
+                )
+                right_text = f"{r_status_icon} {right_kpi['label']}: {right_kpi['value']}{right_kpi['unit']} {r_trend_icon}"
+                print(left_text.ljust(50) + right_text)
+            else:
+                print(left_text)
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " TREND INDICATORS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        for _key, indicator in trend_indicators.items():
+            print(
+                f"  {indicator['indicator']} {indicator['label']}: {indicator['value']}"
+            )
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " STATUS INDICATORS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        for _key, indicator in status_indicators.items():
+            print(
+                f"  {indicator['indicator']} {indicator['label']}: {indicator['value']}"
+            )
+            print(f"     └─ {indicator['description']}")
+
+        if alerts:
+            print("\n" + "┌" + "─" * 98 + "┐")
+            print("│" + " ACTIVE ALERTS".center(98) + "│")
+            print("└" + "─" * 98 + "┘")
+            for i, alert in enumerate(alerts, 1):
+                severity_icon = (
+                    "🔴"
+                    if alert["severity"] == "CRITICAL"
+                    else "🟡"
+                    if alert["severity"] == "HIGH"
+                    else "🟠"
+                )
+                print(
+                    f"  {severity_icon} [{alert['severity']}] {alert['message']} (Priority: {alert['priority']})"
+                )
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " QUICK STATS SUMMARY".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(f"  📊 Astronauts in Space: {quick_stats['astronauts_in_space']}")
+        print(f"  🛸 Active Spacecraft: {quick_stats['spacecraft_active']}")
+        print(f"  📈 Capacity Used: {quick_stats['capacity_used']}")
+        print(f"  💚 Health Score: {quick_stats['health_score']}")
+        print(f"  📊 Growth Rate: {quick_stats['growth_rate']}")
+        print(f"  ⭐ Status: {quick_stats['status']}")
+
+        print("\n" + "╔" + "═" * 98 + "╗")
+        print("║" + " END OF DASHBOARD".center(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+        print("\n")
+
+        return dashboard
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -2778,7 +3107,7 @@ def example_astronauts():
 
     # Generate executive insights report synthesizing all analysis
     # (produces insights_report Dataset)
-    generate_insights_report(
+    insights_report_result = generate_insights_report(
         comprehensive_analysis_result,
         trend_calculations_result,
         validation_result,
@@ -2789,6 +3118,15 @@ def example_astronauts():
     # (produces summary_report Dataset)
     generate_summary_report(
         astronaut_list, weather_info, correlation_result, calculated_statistics
+    )
+
+    # Generate performance dashboard with visual KPIs and metrics
+    # (produces performance_dashboard Dataset)
+    generate_performance_dashboard(
+        astronaut_statistics,
+        calculated_statistics,
+        trend_calculations_result,
+        insights_report_result,
     )
 
     # Use dynamic task mapping to run the print_astronaut_craft task for each

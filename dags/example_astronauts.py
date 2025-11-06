@@ -3839,6 +3839,506 @@ def example_astronauts():
         return export_results
 
     @task(
+        # Define a dataset outlet for cross-validation and backtesting results
+        outlets=[Dataset("model_validation")]
+    )
+    def perform_cross_validation_backtesting(
+        astronaut_list: list[dict],
+        calculated_stats: dict,
+        trend_calculations: dict,
+        weather_data: dict,
+        regression_result: dict,
+        model_comparison: dict,
+        **context,
+    ) -> dict:
+        """
+        This task performs k-fold cross-validation and backtesting on regression models
+        to validate their predictive accuracy. Simulates historical data and measures
+        forecast error using RMSE, MAE, MAPE, and other accuracy metrics.
+        """
+        import math
+
+        execution_date = context.get("ds", "N/A")
+
+        print("\n")
+        print("╔" + "═" * 98 + "╗")
+        print("║" + " " * 28 + "CROSS-VALIDATION & BACKTESTING SYSTEM" + " " * 32 + "║")
+        print("╠" + "═" * 98 + "╣")
+        print("║" + f" Analysis Date: {execution_date}".ljust(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+
+        # ========== DATA PREPARATION ==========
+        total_astronauts = calculated_stats.get("total_astronauts", 0)
+        growth_rate = trend_calculations.get("growth_rate", {}).get("rate_of_change", 0)
+        momentum = trend_calculations.get("momentum_indicators", {}).get(
+            "momentum_score", 50
+        )
+        temperature = weather_data.get("temperature_celsius", 20)
+
+        # Generate extended historical dataset for validation
+        historical_periods = 20  # More data for validation
+        x_values = list(range(1, historical_periods + 1))
+        y_values = []
+
+        base_count = max(1, total_astronauts - historical_periods // 2)
+        trend_step = growth_rate / 100 if growth_rate != 0 else 0.1
+
+        # Add realistic noise to simulate real-world variance
+        for i in range(historical_periods):
+            weather_factor = (temperature - 20) / 100
+            momentum_factor = (momentum - 50) / 100
+            # Add noise factor (±10% variance)
+            noise = (hash(str(i)) % 20 - 10) / 100
+            historical_value = (
+                base_count + (i * trend_step) + weather_factor + momentum_factor + noise
+            )
+            y_values.append(max(0, historical_value))
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " DATA PREPARATION".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(f"  📊 Historical Data Points: {len(y_values)}")
+        print(f"  📈 Value Range: {min(y_values):.2f} - {max(y_values):.2f}")
+        print(f"  📉 Mean: {sum(y_values) / len(y_values):.2f}")
+
+        # ========== K-FOLD CROSS-VALIDATION ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " K-FOLD CROSS-VALIDATION (k=5)".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        k_folds = 5
+        fold_size = len(x_values) // k_folds
+        cv_results = []
+
+        def fit_linear_model(x_train, y_train):
+            """Fit linear regression model"""
+            n = len(x_train)
+            sum_x = sum(x_train)
+            sum_y = sum(y_train)
+            sum_xy = sum(x * y for x, y in zip(x_train, y_train, strict=False))
+            sum_x_squared = sum(x * x for x in x_train)
+
+            if n * sum_x_squared - sum_x * sum_x != 0:
+                slope = (n * sum_xy - sum_x * sum_y) / (
+                    n * sum_x_squared - sum_x * sum_x
+                )
+                intercept = (sum_y - slope * sum_x) / n
+            else:
+                slope = 0
+                intercept = sum_y / n if n > 0 else 0
+
+            return slope, intercept
+
+        def calculate_errors(y_true, y_pred):
+            """Calculate error metrics"""
+            n = len(y_true)
+            mse = (
+                sum((yt - yp) ** 2 for yt, yp in zip(y_true, y_pred, strict=False)) / n
+            )
+            rmse = math.sqrt(mse)
+            mae = sum(abs(yt - yp) for yt, yp in zip(y_true, y_pred, strict=False)) / n
+
+            # MAPE (Mean Absolute Percentage Error)
+            mape_values = []
+            for yt, yp in zip(y_true, y_pred, strict=False):
+                if yt != 0:
+                    mape_values.append(abs((yt - yp) / yt) * 100)
+            mape = sum(mape_values) / len(mape_values) if mape_values else 0
+
+            # R-squared
+            y_mean = sum(y_true) / n
+            ss_tot = sum((y - y_mean) ** 2 for y in y_true)
+            ss_res = sum((yt - yp) ** 2 for yt, yp in zip(y_true, y_pred, strict=False))
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+
+            return {
+                "rmse": rmse,
+                "mae": mae,
+                "mape": mape,
+                "r_squared": r_squared,
+                "mse": mse,
+            }
+
+        print("\n  Performing k-fold cross-validation...")
+        print("  " + "─" * 90)
+        print(
+            f"  {'Fold':<8} {'Train Size':<12} {'Test Size':<12} {'RMSE':<10} {'MAE':<10} {'MAPE':<10} {'R²':<10}"
+        )
+        print("  " + "─" * 90)
+
+        for fold in range(k_folds):
+            # Split data into train and test
+            test_start = fold * fold_size
+            test_end = test_start + fold_size
+
+            test_indices = list(range(test_start, test_end))
+            train_indices = [i for i in range(len(x_values)) if i not in test_indices]
+
+            x_train = [x_values[i] for i in train_indices]
+            y_train = [y_values[i] for i in train_indices]
+            x_test = [x_values[i] for i in test_indices]
+            y_test = [y_values[i] for i in test_indices]
+
+            # Train model
+            slope, intercept = fit_linear_model(x_train, y_train)
+
+            # Predict on test set
+            y_pred = [slope * x + intercept for x in x_test]
+
+            # Calculate errors
+            errors = calculate_errors(y_test, y_pred)
+
+            cv_results.append(
+                {
+                    "fold": fold + 1,
+                    "train_size": len(x_train),
+                    "test_size": len(x_test),
+                    "slope": slope,
+                    "intercept": intercept,
+                    **errors,
+                }
+            )
+
+            print(
+                f"  {fold + 1:<8} {len(x_train):<12} {len(x_test):<12} {errors['rmse']:<10.4f} {errors['mae']:<10.4f} {errors['mape']:<10.2f}% {errors['r_squared']:<10.4f}"
+            )
+
+        # Calculate average metrics across folds
+        avg_rmse = sum(fold["rmse"] for fold in cv_results) / k_folds
+        avg_mae = sum(fold["mae"] for fold in cv_results) / k_folds
+        avg_mape = sum(fold["mape"] for fold in cv_results) / k_folds
+        avg_r_squared = sum(fold["r_squared"] for fold in cv_results) / k_folds
+
+        print("  " + "─" * 90)
+        print(
+            f"  {'AVERAGE':<8} {'':<12} {'':<12} {avg_rmse:<10.4f} {avg_mae:<10.4f} {avg_mape:<10.2f}% {avg_r_squared:<10.4f}"
+        )
+        print("  " + "─" * 90)
+
+        # ========== BACKTESTING ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " BACKTESTING (Walk-Forward Validation)".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Walk-forward validation: Train on past data, predict next value, then add actual value to training set
+        min_train_size = 10
+        backtest_results = []
+
+        print("\n  Performing walk-forward backtesting...")
+        print("  " + "─" * 90)
+        print(
+            f"  {'Step':<8} {'Train Size':<12} {'Actual':<12} {'Predicted':<12} {'Error':<12} {'Error %':<12}"
+        )
+        print("  " + "─" * 90)
+
+        for i in range(min_train_size, len(x_values)):
+            # Train on all data up to current point
+            x_train = x_values[:i]
+            y_train = y_values[:i]
+
+            # Predict next value
+            slope, intercept = fit_linear_model(x_train, y_train)
+            x_next = x_values[i]
+            y_predicted = slope * x_next + intercept
+            y_actual = y_values[i]
+
+            error = y_actual - y_predicted
+            error_pct = (abs(error) / y_actual * 100) if y_actual != 0 else 0
+
+            backtest_results.append(
+                {
+                    "step": i - min_train_size + 1,
+                    "train_size": len(x_train),
+                    "x_value": x_next,
+                    "actual": y_actual,
+                    "predicted": y_predicted,
+                    "error": error,
+                    "error_percent": error_pct,
+                }
+            )
+
+            if (i - min_train_size) % 2 == 0:  # Print every other row to reduce output
+                print(
+                    f"  {i - min_train_size + 1:<8} {len(x_train):<12} {y_actual:<12.2f} {y_predicted:<12.2f} {error:<12.2f} {error_pct:<12.2f}%"
+                )
+
+        # Calculate backtest metrics
+        bt_actuals = [bt["actual"] for bt in backtest_results]
+        bt_predictions = [bt["predicted"] for bt in backtest_results]
+        bt_errors = calculate_errors(bt_actuals, bt_predictions)
+
+        print("  " + "─" * 90)
+        print("\n  📊 Backtest Performance:")
+        print(f"     RMSE: {bt_errors['rmse']:.4f}")
+        print(f"     MAE:  {bt_errors['mae']:.4f}")
+        print(f"     MAPE: {bt_errors['mape']:.2f}%")
+        print(f"     R²:   {bt_errors['r_squared']:.4f}")
+
+        # ========== TIME SERIES SPLIT VALIDATION ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " TIME SERIES SPLIT VALIDATION".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Split chronologically: 70% train, 30% test
+        split_point = int(len(x_values) * 0.7)
+        x_train_ts = x_values[:split_point]
+        y_train_ts = y_values[:split_point]
+        x_test_ts = x_values[split_point:]
+        y_test_ts = y_values[split_point:]
+
+        # Train and predict
+        slope_ts, intercept_ts = fit_linear_model(x_train_ts, y_train_ts)
+        y_pred_ts = [slope_ts * x + intercept_ts for x in x_test_ts]
+        ts_errors = calculate_errors(y_test_ts, y_pred_ts)
+
+        print(f"\n  📊 Train Set: {len(x_train_ts)} samples (70%)")
+        print(f"  📊 Test Set:  {len(x_test_ts)} samples (30%)")
+        print("\n  📈 Time Series Split Performance:")
+        print(f"     RMSE: {ts_errors['rmse']:.4f}")
+        print(f"     MAE:  {ts_errors['mae']:.4f}")
+        print(f"     MAPE: {ts_errors['mape']:.2f}%")
+        print(f"     R²:   {ts_errors['r_squared']:.4f}")
+
+        # ========== MODEL STABILITY ANALYSIS ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " MODEL STABILITY ANALYSIS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Check variance in model parameters across folds
+        slopes = [fold["slope"] for fold in cv_results]
+        intercepts = [fold["intercept"] for fold in cv_results]
+
+        slope_mean = sum(slopes) / len(slopes)
+        slope_variance = sum((s - slope_mean) ** 2 for s in slopes) / len(slopes)
+        slope_std = math.sqrt(slope_variance)
+
+        intercept_mean = sum(intercepts) / len(intercepts)
+        intercept_variance = sum((i - intercept_mean) ** 2 for i in intercepts) / len(
+            intercepts
+        )
+        intercept_std = math.sqrt(intercept_variance)
+
+        # Calculate coefficient of variation (CV)
+        slope_cv = (slope_std / abs(slope_mean) * 100) if slope_mean != 0 else 0
+        intercept_cv = (
+            (intercept_std / abs(intercept_mean) * 100) if intercept_mean != 0 else 0
+        )
+
+        print("\n  📐 Slope Statistics:")
+        print(f"     Mean:     {slope_mean:.4f}")
+        print(f"     Std Dev:  {slope_std:.4f}")
+        print(f"     CV:       {slope_cv:.2f}%")
+
+        print("\n  📍 Intercept Statistics:")
+        print(f"     Mean:     {intercept_mean:.4f}")
+        print(f"     Std Dev:  {intercept_std:.4f}")
+        print(f"     CV:       {intercept_cv:.2f}%")
+
+        # Stability assessment
+        stability_score = 100 - min(slope_cv + intercept_cv, 100)
+        stability_rating = (
+            "Excellent"
+            if stability_score > 90
+            else "Good"
+            if stability_score > 75
+            else "Fair"
+            if stability_score > 50
+            else "Poor"
+        )
+
+        print(
+            f"\n  ⭐ Model Stability Score: {stability_score:.1f}/100 ({stability_rating})"
+        )
+
+        # ========== FORECAST HORIZON ANALYSIS ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " FORECAST HORIZON ANALYSIS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Test prediction accuracy at different forecast horizons
+        horizon_results = []
+        horizons = [1, 3, 5, 7]  # Predict 1, 3, 5, 7 steps ahead
+
+        print("\n  Testing prediction accuracy at different forecast horizons:")
+        print("  " + "─" * 90)
+        print(
+            f"  {'Horizon':<12} {'Avg Error':<15} {'Avg Error %':<15} {'Max Error':<15}"
+        )
+        print("  " + "─" * 90)
+
+        for horizon in horizons:
+            horizon_errors = []
+            horizon_pct_errors = []
+
+            for i in range(min_train_size, len(x_values) - horizon):
+                x_train = x_values[:i]
+                y_train = y_values[:i]
+
+                slope, intercept = fit_linear_model(x_train, y_train)
+
+                # Predict 'horizon' steps ahead
+                x_future = x_values[i + horizon - 1]
+                y_pred = slope * x_future + intercept
+                y_actual = y_values[i + horizon - 1]
+
+                error = abs(y_actual - y_pred)
+                error_pct = (error / y_actual * 100) if y_actual != 0 else 0
+
+                horizon_errors.append(error)
+                horizon_pct_errors.append(error_pct)
+
+            avg_error = (
+                sum(horizon_errors) / len(horizon_errors) if horizon_errors else 0
+            )
+            avg_error_pct = (
+                sum(horizon_pct_errors) / len(horizon_pct_errors)
+                if horizon_pct_errors
+                else 0
+            )
+            max_error = max(horizon_errors) if horizon_errors else 0
+
+            horizon_results.append(
+                {
+                    "horizon": horizon,
+                    "avg_error": avg_error,
+                    "avg_error_pct": avg_error_pct,
+                    "max_error": max_error,
+                }
+            )
+
+            print(
+                f"  {horizon} step(s)   {avg_error:<15.4f} {avg_error_pct:<15.2f}% {max_error:<15.4f}"
+            )
+
+        print("  " + "─" * 90)
+
+        # ========== VALIDATION SUMMARY ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " VALIDATION SUMMARY".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Overall assessment
+        cv_quality = (
+            "Excellent"
+            if avg_r_squared > 0.9
+            else "Good"
+            if avg_r_squared > 0.75
+            else "Fair"
+            if avg_r_squared > 0.5
+            else "Poor"
+        )
+        bt_quality = (
+            "Excellent"
+            if bt_errors["r_squared"] > 0.9
+            else "Good"
+            if bt_errors["r_squared"] > 0.75
+            else "Fair"
+            if bt_errors["r_squared"] > 0.5
+            else "Poor"
+        )
+
+        print(
+            f"\n  ✅ Cross-Validation Quality: {cv_quality} (R² = {avg_r_squared:.4f})"
+        )
+        print(
+            f"  ✅ Backtest Quality: {bt_quality} (R² = {bt_errors['r_squared']:.4f})"
+        )
+        print(f"  ✅ Model Stability: {stability_rating} ({stability_score:.1f}/100)")
+
+        # Generate recommendations
+        recommendations = []
+
+        if avg_r_squared > 0.8:
+            recommendations.append(
+                "✓ Model shows strong predictive performance across validation sets"
+            )
+        else:
+            recommendations.append(
+                "⚠ Consider exploring non-linear models or additional features"
+            )
+
+        if avg_mape < 10:
+            recommendations.append(
+                "✓ Forecast errors are within acceptable range (<10% MAPE)"
+            )
+        elif avg_mape < 20:
+            recommendations.append("⚠ Forecast errors are moderate (10-20% MAPE)")
+        else:
+            recommendations.append(
+                "✗ High forecast errors (>20% MAPE) - model may not be suitable"
+            )
+
+        if stability_score > 80:
+            recommendations.append(
+                "✓ Model parameters are stable across different data splits"
+            )
+        else:
+            recommendations.append(
+                "⚠ Model shows instability - consider regularization or more data"
+            )
+
+        print("\n  📋 Recommendations:")
+        for i, rec in enumerate(recommendations, 1):
+            print(f"     {i}. {rec}")
+
+        # ========== COMPILE RESULTS ==========
+        validation_results = {
+            "validation_metadata": {
+                "generated_at": execution_date,
+                "validation_type": "k-fold cross-validation + walk-forward backtesting",
+                "k_folds": k_folds,
+                "historical_periods": historical_periods,
+            },
+            "cross_validation": {
+                "k_folds": k_folds,
+                "fold_results": cv_results,
+                "average_metrics": {
+                    "rmse": avg_rmse,
+                    "mae": avg_mae,
+                    "mape": avg_mape,
+                    "r_squared": avg_r_squared,
+                },
+                "quality_rating": cv_quality,
+            },
+            "backtesting": {
+                "method": "walk-forward",
+                "min_train_size": min_train_size,
+                "test_count": len(backtest_results),
+                "results": backtest_results,
+                "metrics": bt_errors,
+                "quality_rating": bt_quality,
+            },
+            "time_series_split": {
+                "train_size": len(x_train_ts),
+                "test_size": len(x_test_ts),
+                "split_ratio": "70/30",
+                "metrics": ts_errors,
+            },
+            "stability_analysis": {
+                "slope_mean": slope_mean,
+                "slope_std": slope_std,
+                "slope_cv": slope_cv,
+                "intercept_mean": intercept_mean,
+                "intercept_std": intercept_std,
+                "intercept_cv": intercept_cv,
+                "stability_score": stability_score,
+                "stability_rating": stability_rating,
+            },
+            "forecast_horizon": {
+                "horizons_tested": horizons,
+                "results": horizon_results,
+            },
+            "recommendations": recommendations,
+        }
+
+        print("\n" + "╔" + "═" * 98 + "╗")
+        print("║" + " CROSS-VALIDATION & BACKTESTING COMPLETED".center(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+        print("\n")
+
+        return validation_results
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -4719,6 +5219,16 @@ def example_astronauts():
         trend_calculations_result,
         weather_info,
         regression_result,
+    )
+
+    # Perform cross-validation and backtesting on models (produces model_validation Dataset)
+    perform_cross_validation_backtesting(
+        astronaut_list,
+        calculated_statistics,
+        trend_calculations_result,
+        weather_info,
+        regression_result,
+        model_comparison_result,
     )
 
     # Analyze correlation between astronaut, weather, and calculated statistics data

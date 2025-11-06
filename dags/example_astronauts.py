@@ -2746,7 +2746,7 @@ def example_astronauts():
     )
 
     # Perform comprehensive analysis (produces comprehensive_analysis Dataset)
-    perform_comprehensive_analysis(
+    comprehensive_analysis_result = perform_comprehensive_analysis(
         astronaut_list,
         astronaut_statistics,
         calculated_statistics,
@@ -2754,7 +2754,9 @@ def example_astronauts():
     )
 
     # Calculate trends and growth rates (produces trend_calculations Dataset)
-    calculate_trends(astronaut_list, calculated_statistics, statistical_methods_result)
+    trend_calculations_result = calculate_trends(
+        astronaut_list, calculated_statistics, statistical_methods_result
+    )
 
     # Fetch weather data independently (produces weather_data Dataset)
     weather_info = get_weather_data()

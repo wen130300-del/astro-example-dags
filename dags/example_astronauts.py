@@ -601,6 +601,212 @@ def example_astronauts():
 
         return analysis
 
+    @task(
+        # Define a dataset outlet for the comprehensive summary report
+        outlets=[Dataset("summary_report")]
+    )
+    def generate_summary_report(
+        astronaut_list: list[dict],
+        weather_data: dict,
+        correlation_analysis: dict,
+        calculated_stats: dict,
+        **context,
+    ) -> dict:
+        """
+        This task generates a comprehensive summary report by consolidating data
+        from all major pipeline tasks: astronaut data, weather data, correlation
+        analysis, and calculated statistics. It provides an executive summary
+        with key findings, metrics, and actionable insights.
+        """
+        from datetime import datetime
+
+        # Extract execution timestamp
+        execution_date = context.get("execution_date", datetime.now())
+
+        # Get astronaut count from XCom
+        total_astronauts = context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Extract key data from each source
+        # From astronaut_list
+        spacecraft_names = list(set(person["craft"] for person in astronaut_list))
+        astronaut_names = [person["name"] for person in astronaut_list]
+
+        # From weather_data
+        temperature = weather_data.get("temperature_celsius", 0)
+        pressure = weather_data.get("pressure_hpa", 0)
+        weather_location = weather_data.get("location", "N/A")
+        weather_timestamp = weather_data.get("timestamp", "N/A")
+
+        # From calculated_stats
+        std_deviation = calculated_stats.get("variability_measures", {}).get(
+            "standard_deviation", 0
+        )
+        distribution_pattern = calculated_stats.get("distribution_analysis", {}).get(
+            "pattern", "unknown"
+        )
+        capacity_utilization = calculated_stats.get("capacity_metrics", {}).get(
+            "current_utilization_percent", 0
+        )
+        evenness_score = calculated_stats.get("distribution_analysis", {}).get(
+            "distribution_evenness_score", 0
+        )
+
+        # From correlation_analysis
+        quality_score = correlation_analysis.get("data_quality_score", 0)
+        insights = correlation_analysis.get("observational_insights", [])
+
+        # Build comprehensive summary report
+        summary_report = {
+            "report_metadata": {
+                "report_title": "Astronaut Mission Summary Report",
+                "generated_at": str(execution_date),
+                "report_version": "1.0",
+                "data_sources": [
+                    "Open Notify Astronaut API",
+                    "Open-Meteo Weather API",
+                    "Internal Statistical Calculations",
+                ],
+            },
+            "executive_summary": {
+                "total_astronauts_in_space": total_astronauts,
+                "number_of_spacecraft": len(spacecraft_names),
+                "data_quality_score": quality_score,
+                "overall_status": "OPERATIONAL",
+            },
+            "astronaut_data": {
+                "spacecraft_list": spacecraft_names,
+                "astronaut_count": total_astronauts,
+                "crew_members": astronaut_names,
+            },
+            "environmental_data": {
+                "ground_control_location": weather_location,
+                "temperature_celsius": temperature,
+                "atmospheric_pressure_hpa": pressure,
+                "observation_time": weather_timestamp,
+            },
+            "statistical_analysis": {
+                "distribution_pattern": distribution_pattern,
+                "standard_deviation": std_deviation,
+                "capacity_utilization_percent": capacity_utilization,
+                "distribution_evenness_score": evenness_score,
+            },
+            "key_insights": insights,
+            "recommendations": [],
+        }
+
+        # Generate recommendations based on analysis
+        recommendations = []
+
+        if capacity_utilization < 30:
+            recommendations.append(
+                "Low capacity utilization detected - consider planning additional missions"
+            )
+        elif capacity_utilization > 80:
+            recommendations.append(
+                "High capacity utilization - monitor crew rotation schedules closely"
+            )
+
+        if distribution_pattern == "highly_variable":
+            recommendations.append(
+                "Uneven crew distribution - review mission requirements and resource allocation"
+            )
+
+        if evenness_score > 80:
+            recommendations.append(
+                "Excellent crew distribution balance - maintain current allocation strategy"
+            )
+
+        if quality_score < 70:
+            recommendations.append(
+                "Data quality issues detected - verify data sources and connections"
+            )
+
+        if temperature < 5 or temperature > 35:
+            recommendations.append(
+                f"Extreme ground temperature ({temperature}°C) - monitor mission control environment"
+            )
+
+        if not recommendations:
+            recommendations.append("All systems nominal - continue standard operations")
+
+        summary_report["recommendations"] = recommendations
+
+        # Generate comprehensive formatted report
+        print("\n")
+        print("=" * 90)
+        print("╔" + "═" * 88 + "╗")
+        print("║" + " " * 20 + "ASTRONAUT MISSION SUMMARY REPORT" + " " * 36 + "║")
+        print("╚" + "═" * 88 + "╝")
+        print("=" * 90)
+
+        print("\n📋 REPORT METADATA:")
+        print(f"  • Generated: {execution_date}")
+        print(f"  • Version: {summary_report['report_metadata']['report_version']}")
+        print(
+            f"  • Data Sources: {len(summary_report['report_metadata']['data_sources'])}"
+        )
+
+        print("\n" + "=" * 90)
+        print("EXECUTIVE SUMMARY")
+        print("=" * 90)
+        print(f"  🚀 Total Astronauts in Space: {total_astronauts}")
+        print(f"  🛸 Active Spacecraft: {len(spacecraft_names)}")
+        print(f"  ✅ Data Quality Score: {quality_score}/100")
+        print(
+            f"  📊 Overall Status: {summary_report['executive_summary']['overall_status']}"
+        )
+
+        print("\n" + "=" * 90)
+        print("SECTION 1: ASTRONAUT DATA")
+        print("=" * 90)
+        print(f"  • Total Crew Members: {total_astronauts}")
+        print("  • Spacecraft in Operation:")
+        for i, craft in enumerate(spacecraft_names, 1):
+            print(f"    {i}. {craft}")
+        print("\n  • Crew Members:")
+        for i, name in enumerate(astronaut_names, 1):
+            print(f"    {i}. {name}")
+
+        print("\n" + "=" * 90)
+        print("SECTION 2: ENVIRONMENTAL DATA (Ground Control)")
+        print("=" * 90)
+        print(f"  • Location: {weather_location}")
+        print(f"  • Temperature: {temperature}°C")
+        print(f"  • Atmospheric Pressure: {pressure} hPa")
+        print(f"  • Observation Time: {weather_timestamp}")
+
+        print("\n" + "=" * 90)
+        print("SECTION 3: STATISTICAL ANALYSIS")
+        print("=" * 90)
+        print(
+            f"  • Distribution Pattern: {distribution_pattern.replace('_', ' ').title()}"
+        )
+        print(f"  • Standard Deviation: {std_deviation:.2f}")
+        print(f"  • Capacity Utilization: {capacity_utilization:.2f}%")
+        print(f"  • Distribution Evenness: {evenness_score:.0f}/100")
+
+        print("\n" + "=" * 90)
+        print("SECTION 4: KEY INSIGHTS")
+        print("=" * 90)
+        if insights:
+            for i, insight in enumerate(insights, 1):
+                print(f"  {i}. {insight}")
+        else:
+            print("  • No significant insights detected")
+
+        print("\n" + "=" * 90)
+        print("SECTION 5: RECOMMENDATIONS")
+        print("=" * 90)
+        for i, recommendation in enumerate(recommendations, 1):
+            print(f"  {i}. {recommendation}")
+
+        print("\n" + "=" * 90)
+        print("END OF REPORT")
+        print("=" * 90)
+        print("\n")
+
+        return summary_report
+
     @task
     def print_astronaut_craft(greeting: str, person_in_space: dict) -> None:
         """
@@ -632,7 +838,15 @@ def example_astronauts():
 
     # Analyze correlation between astronaut, weather, and calculated statistics data
     # (produces correlation_analysis Dataset)
-    analyze_correlation(astronaut_statistics, weather_info, calculated_statistics)
+    correlation_result = analyze_correlation(
+        astronaut_statistics, weather_info, calculated_statistics
+    )
+
+    # Generate comprehensive summary report combining all data sources
+    # (produces summary_report Dataset)
+    generate_summary_report(
+        astronaut_list, weather_info, correlation_result, calculated_statistics
+    )
 
     # Use dynamic task mapping to run the print_astronaut_craft task for each
     # Astronaut in space

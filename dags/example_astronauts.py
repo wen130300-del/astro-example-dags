@@ -2548,6 +2548,440 @@ def example_astronauts():
         return regression_results
 
     @task(
+        # Define a dataset outlet for model comparison results
+        outlets=[Dataset("model_comparison")]
+    )
+    def compare_regression_models(
+        astronaut_list: list[dict],
+        calculated_stats: dict,
+        trend_calculations: dict,
+        weather_data: dict,
+        linear_regression_result: dict,
+        **context,
+    ) -> dict:
+        """
+        This task compares multiple regression models (Linear, Polynomial degree 2, Polynomial degree 3)
+        and evaluates their performance using R², RMSE, MAE, and AIC metrics to determine the best model.
+        """
+        import math
+
+        execution_date = context.get("ds", "N/A")
+
+        # ========== DATA PREPARATION ==========
+        total_astronauts = calculated_stats.get("total_astronauts", 0)
+        growth_rate = trend_calculations.get("growth_rate", {}).get("rate_of_change", 0)
+        momentum = trend_calculations.get("momentum_indicators", {}).get(
+            "momentum_score", 50
+        )
+        temperature = weather_data.get("temperature_celsius", 20)
+
+        print("\n")
+        print("╔" + "═" * 98 + "╗")
+        print("║" + " " * 32 + "MODEL COMPARISON FRAMEWORK" + " " * 39 + "║")
+        print("╠" + "═" * 98 + "╣")
+        print("║" + f" Analysis Date: {execution_date}".ljust(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+
+        # Generate synthetic historical data (same as in regression model)
+        historical_periods = 10
+        x_values = list(range(1, historical_periods + 1))
+        y_values = []
+
+        base_count = max(1, total_astronauts - historical_periods // 2)
+        trend_step = growth_rate / 100 if growth_rate != 0 else 0.1
+
+        for i in range(historical_periods):
+            weather_factor = (temperature - 20) / 100
+            momentum_factor = (momentum - 50) / 100
+            historical_value = (
+                base_count + (i * trend_step) + weather_factor + momentum_factor
+            )
+            y_values.append(max(0, historical_value))
+
+        n = len(x_values)
+        y_mean = sum(y_values) / n
+
+        # ========== HELPER FUNCTIONS ==========
+        def calculate_metrics(y_actual, y_predicted, num_parameters):
+            """Calculate performance metrics for a model"""
+            # R-squared
+            ss_tot = sum((y - y_mean) ** 2 for y in y_actual)
+            ss_res = sum(
+                (y - y_pred) ** 2
+                for y, y_pred in zip(y_actual, y_predicted, strict=False)
+            )
+            r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+
+            # RMSE (Root Mean Squared Error)
+            mse = (
+                sum(
+                    (y - y_pred) ** 2
+                    for y, y_pred in zip(y_actual, y_predicted, strict=False)
+                )
+                / n
+            )
+            rmse = math.sqrt(mse)
+
+            # MAE (Mean Absolute Error)
+            mae = (
+                sum(
+                    abs(y - y_pred)
+                    for y, y_pred in zip(y_actual, y_predicted, strict=False)
+                )
+                / n
+            )
+
+            # AIC (Akaike Information Criterion) - lower is better
+            # AIC = n * ln(MSE) + 2 * k, where k is number of parameters
+            aic = n * math.log(mse) + 2 * num_parameters if mse > 0 else float("inf")
+
+            # Adjusted R-squared
+            adj_r_squared = (
+                1 - ((1 - r_squared) * (n - 1) / (n - num_parameters - 1))
+                if n > num_parameters + 1
+                else r_squared
+            )
+
+            return {
+                "r_squared": r_squared,
+                "adj_r_squared": adj_r_squared,
+                "rmse": rmse,
+                "mae": mae,
+                "aic": aic,
+                "mse": mse,
+            }
+
+        def fit_polynomial(x, y, degree):
+            """Fit polynomial regression using normal equations"""
+            # Create design matrix X
+            X = [[x_i**j for j in range(degree + 1)] for x_i in x]
+
+            # Calculate X^T * X
+            XtX = [
+                [
+                    sum(X[i][k] * X[i][j] for i in range(len(X)))
+                    for j in range(degree + 1)
+                ]
+                for k in range(degree + 1)
+            ]
+
+            # Calculate X^T * y
+            Xty = [
+                sum(X[i][j] * y[i] for i in range(len(X))) for j in range(degree + 1)
+            ]
+
+            # Solve using Gaussian elimination
+            coefficients = gaussian_elimination(XtX, Xty)
+
+            return coefficients
+
+        def gaussian_elimination(A, b):
+            """Solve system of linear equations Ax = b using Gaussian elimination"""
+            n = len(b)
+            # Create augmented matrix
+            aug = [A[i] + [b[i]] for i in range(n)]
+
+            # Forward elimination
+            for i in range(n):
+                # Find pivot
+                max_row = i
+                for k in range(i + 1, n):
+                    if abs(aug[k][i]) > abs(aug[max_row][i]):
+                        max_row = k
+                aug[i], aug[max_row] = aug[max_row], aug[i]
+
+                # Make all rows below this one 0 in current column
+                for k in range(i + 1, n):
+                    if aug[i][i] != 0:
+                        factor = aug[k][i] / aug[i][i]
+                        for j in range(i, n + 1):
+                            aug[k][j] -= factor * aug[i][j]
+
+            # Back substitution
+            x = [0] * n
+            for i in range(n - 1, -1, -1):
+                if aug[i][i] != 0:
+                    x[i] = aug[i][n]
+                    for j in range(i + 1, n):
+                        x[i] -= aug[i][j] * x[j]
+                    x[i] /= aug[i][i]
+
+            return x
+
+        def predict_polynomial(coefficients, x):
+            """Predict y value using polynomial coefficients"""
+            return sum(coef * (x**i) for i, coef in enumerate(coefficients))
+
+        # ========== MODEL 1: LINEAR REGRESSION ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " MODEL 1: LINEAR REGRESSION".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        # Extract from existing linear regression result
+        linear_slope = linear_regression_result["model_coefficients"]["slope"]
+        linear_intercept = linear_regression_result["model_coefficients"]["intercept"]
+
+        # Calculate predictions
+        linear_predictions = [linear_slope * x + linear_intercept for x in x_values]
+        linear_metrics = calculate_metrics(
+            y_values, linear_predictions, 2
+        )  # 2 parameters: slope, intercept
+
+        print(f"  📐 Equation: y = {linear_slope:.4f}x + {linear_intercept:.4f}")
+        print(f"  🎯 R²: {linear_metrics['r_squared']:.4f}")
+        print(f"  📊 Adjusted R²: {linear_metrics['adj_r_squared']:.4f}")
+        print(f"  📏 RMSE: {linear_metrics['rmse']:.4f}")
+        print(f"  📐 MAE: {linear_metrics['mae']:.4f}")
+        print(f"  🔢 AIC: {linear_metrics['aic']:.2f}")
+
+        # ========== MODEL 2: POLYNOMIAL REGRESSION (DEGREE 2) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " MODEL 2: POLYNOMIAL REGRESSION (Degree 2)".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        poly2_coefficients = fit_polynomial(x_values, y_values, 2)
+        poly2_predictions = [
+            predict_polynomial(poly2_coefficients, x) for x in x_values
+        ]
+        poly2_metrics = calculate_metrics(
+            y_values, poly2_predictions, 3
+        )  # 3 parameters
+
+        print(
+            f"  📐 Equation: y = {poly2_coefficients[2]:.4f}x² + {poly2_coefficients[1]:.4f}x + {poly2_coefficients[0]:.4f}"
+        )
+        print(f"  🎯 R²: {poly2_metrics['r_squared']:.4f}")
+        print(f"  📊 Adjusted R²: {poly2_metrics['adj_r_squared']:.4f}")
+        print(f"  📏 RMSE: {poly2_metrics['rmse']:.4f}")
+        print(f"  📐 MAE: {poly2_metrics['mae']:.4f}")
+        print(f"  🔢 AIC: {poly2_metrics['aic']:.2f}")
+
+        # ========== MODEL 3: POLYNOMIAL REGRESSION (DEGREE 3) ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " MODEL 3: POLYNOMIAL REGRESSION (Degree 3)".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        poly3_coefficients = fit_polynomial(x_values, y_values, 3)
+        poly3_predictions = [
+            predict_polynomial(poly3_coefficients, x) for x in x_values
+        ]
+        poly3_metrics = calculate_metrics(
+            y_values, poly3_predictions, 4
+        )  # 4 parameters
+
+        print(
+            f"  📐 Equation: y = {poly3_coefficients[3]:.4f}x³ + {poly3_coefficients[2]:.4f}x² + {poly3_coefficients[1]:.4f}x + {poly3_coefficients[0]:.4f}"
+        )
+        print(f"  🎯 R²: {poly3_metrics['r_squared']:.4f}")
+        print(f"  📊 Adjusted R²: {poly3_metrics['adj_r_squared']:.4f}")
+        print(f"  📏 RMSE: {poly3_metrics['rmse']:.4f}")
+        print(f"  📐 MAE: {poly3_metrics['mae']:.4f}")
+        print(f"  🔢 AIC: {poly3_metrics['aic']:.2f}")
+
+        # ========== MODEL COMPARISON TABLE ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " PERFORMANCE COMPARISON TABLE".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(
+            "  Model                    │    R²    │  Adj R²  │   RMSE   │   MAE    │    AIC    "
+        )
+        print("  " + "─" * 88)
+        print(
+            f"  Linear Regression        │  {linear_metrics['r_squared']:.4f}  │  {linear_metrics['adj_r_squared']:.4f}  │  {linear_metrics['rmse']:.4f}  │  {linear_metrics['mae']:.4f}  │  {linear_metrics['aic']:8.2f}"
+        )
+        print(
+            f"  Polynomial (Degree 2)    │  {poly2_metrics['r_squared']:.4f}  │  {poly2_metrics['adj_r_squared']:.4f}  │  {poly2_metrics['rmse']:.4f}  │  {poly2_metrics['mae']:.4f}  │  {poly2_metrics['aic']:8.2f}"
+        )
+        print(
+            f"  Polynomial (Degree 3)    │  {poly3_metrics['r_squared']:.4f}  │  {poly3_metrics['adj_r_squared']:.4f}  │  {poly3_metrics['rmse']:.4f}  │  {poly3_metrics['mae']:.4f}  │  {poly3_metrics['aic']:8.2f}"
+        )
+
+        # ========== SELECT BEST MODEL ==========
+        models = [
+            {
+                "name": "Linear Regression",
+                "metrics": linear_metrics,
+                "type": "linear",
+                "coefficients": [linear_intercept, linear_slope],
+            },
+            {
+                "name": "Polynomial (Degree 2)",
+                "metrics": poly2_metrics,
+                "type": "polynomial_2",
+                "coefficients": poly2_coefficients,
+            },
+            {
+                "name": "Polynomial (Degree 3)",
+                "metrics": poly3_metrics,
+                "type": "polynomial_3",
+                "coefficients": poly3_coefficients,
+            },
+        ]
+
+        # Ranking system: score each model on different metrics
+        def rank_models(models):
+            scores = []
+            for model in models:
+                m = model["metrics"]
+                # Higher R² is better (weight: 40%)
+                r2_score = m["adj_r_squared"] * 40
+                # Lower RMSE is better (weight: 30%)
+                rmse_scores = [mod["metrics"]["rmse"] for mod in models]
+                min_rmse = min(rmse_scores)
+                rmse_score = (
+                    (1 - (m["rmse"] - min_rmse) / max(rmse_scores)) * 30
+                    if max(rmse_scores) > 0
+                    else 30
+                )
+                # Lower AIC is better (weight: 30%)
+                aic_scores = [
+                    mod["metrics"]["aic"]
+                    for mod in models
+                    if mod["metrics"]["aic"] != float("inf")
+                ]
+                if aic_scores and m["aic"] != float("inf"):
+                    min_aic = min(aic_scores)
+                    max_aic = max(aic_scores)
+                    aic_score = (
+                        (1 - (m["aic"] - min_aic) / (max_aic - min_aic + 0.0001)) * 30
+                        if max_aic > min_aic
+                        else 30
+                    )
+                else:
+                    aic_score = 0
+
+                total_score = r2_score + rmse_score + aic_score
+                scores.append(total_score)
+
+            return scores
+
+        scores = rank_models(models)
+        best_model_idx = scores.index(max(scores))
+        best_model = models[best_model_idx]
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " MODEL RANKING (Composite Score)".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        ranked_models = sorted(
+            zip(models, scores, strict=False), key=lambda x: x[1], reverse=True
+        )
+        for i, (model, score) in enumerate(ranked_models, 1):
+            medal = "🥇" if i == 1 else "🥈" if i == 2 else "🥉"
+            print(f"  {medal} Rank {i}: {model['name']:30s} │ Score: {score:6.2f}/100")
+
+        # ========== BEST MODEL INSIGHTS ==========
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " BEST MODEL SELECTION".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(f"  🏆 Winner: {best_model['name']}")
+        print(f"  ✅ R² Score: {best_model['metrics']['r_squared']:.4f}")
+        print(f"  ✅ RMSE: {best_model['metrics']['rmse']:.4f}")
+        print(f"  ✅ Composite Score: {scores[best_model_idx]:.2f}/100")
+
+        # Generate recommendations
+        recommendations = []
+
+        if best_model["type"] == "linear":
+            recommendations.append(
+                "Linear model is sufficient - data shows a clear linear trend"
+            )
+            recommendations.append("Simple interpretation and low risk of overfitting")
+        elif best_model["type"] == "polynomial_2":
+            recommendations.append(
+                "Quadratic relationship detected - trend shows acceleration/deceleration"
+            )
+            recommendations.append(
+                "Moderate complexity with improved fit over linear model"
+            )
+        else:
+            recommendations.append(
+                "Cubic relationship detected - trend shows complex curvature"
+            )
+            recommendations.append(
+                "⚠️  Higher complexity - monitor for overfitting on new data"
+            )
+
+        if best_model["metrics"]["r_squared"] > 0.9:
+            recommendations.append(
+                "Excellent model fit - predictions should be highly reliable"
+            )
+        elif best_model["metrics"]["r_squared"] > 0.7:
+            recommendations.append(
+                "Good model fit - predictions are reasonably reliable"
+            )
+        else:
+            recommendations.append("⚠️  Moderate fit - use predictions with caution")
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " RECOMMENDATIONS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        for i, rec in enumerate(recommendations, 1):
+            print(f"  {i}. {rec}")
+
+        # ========== COMPILE RESULTS ==========
+        comparison_results = {
+            "comparison_metadata": {
+                "generated_at": execution_date,
+                "models_evaluated": len(models),
+                "evaluation_metrics": ["R²", "Adjusted R²", "RMSE", "MAE", "AIC"],
+            },
+            "models": {
+                "linear": {
+                    "name": "Linear Regression",
+                    "metrics": linear_metrics,
+                    "coefficients": [linear_intercept, linear_slope],
+                    "equation": f"y = {linear_slope:.4f}x + {linear_intercept:.4f}",
+                    "rank": next(
+                        i
+                        for i, (m, _) in enumerate(ranked_models, 1)
+                        if m["type"] == "linear"
+                    ),
+                    "score": scores[0],
+                },
+                "polynomial_2": {
+                    "name": "Polynomial (Degree 2)",
+                    "metrics": poly2_metrics,
+                    "coefficients": poly2_coefficients,
+                    "equation": f"y = {poly2_coefficients[2]:.4f}x² + {poly2_coefficients[1]:.4f}x + {poly2_coefficients[0]:.4f}",
+                    "rank": next(
+                        i
+                        for i, (m, _) in enumerate(ranked_models, 1)
+                        if m["type"] == "polynomial_2"
+                    ),
+                    "score": scores[1],
+                },
+                "polynomial_3": {
+                    "name": "Polynomial (Degree 3)",
+                    "metrics": poly3_metrics,
+                    "coefficients": poly3_coefficients,
+                    "equation": f"y = {poly3_coefficients[3]:.4f}x³ + {poly3_coefficients[2]:.4f}x² + {poly3_coefficients[1]:.4f}x + {poly3_coefficients[0]:.4f}",
+                    "rank": next(
+                        i
+                        for i, (m, _) in enumerate(ranked_models, 1)
+                        if m["type"] == "polynomial_3"
+                    ),
+                    "score": scores[2],
+                },
+            },
+            "best_model": {
+                "name": best_model["name"],
+                "type": best_model["type"],
+                "metrics": best_model["metrics"],
+                "coefficients": best_model["coefficients"],
+                "score": scores[best_model_idx],
+            },
+            "recommendations": recommendations,
+        }
+
+        print("\n" + "╔" + "═" * 98 + "╗")
+        print("║" + " MODEL COMPARISON COMPLETED SUCCESSFULLY".center(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+        print("\n")
+
+        return comparison_results
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -3414,11 +3848,20 @@ def example_astronauts():
     weather_info = get_weather_data()
 
     # Build regression model for predictions (produces regression_predictions Dataset)
-    build_regression_model(
+    regression_result = build_regression_model(
         astronaut_list,
         calculated_statistics,
         trend_calculations_result,
         weather_info,
+    )
+
+    # Compare multiple regression models and select best (produces model_comparison Dataset)
+    compare_regression_models(
+        astronaut_list,
+        calculated_statistics,
+        trend_calculations_result,
+        weather_info,
+        regression_result,
     )
 
     # Analyze correlation between astronaut, weather, and calculated statistics data

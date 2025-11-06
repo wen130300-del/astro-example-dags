@@ -24,13 +24,13 @@ from airflow import Dataset
 from airflow.decorators import dag, task
 from pendulum import datetime
 import requests
-import json
 
 # Define datasets for data-driven scheduling
 astronauts_dataset = Dataset("current_astronauts")
 astronaut_stats_dataset = Dataset("astronaut_statistics")
 weather_dataset = Dataset("iss_weather_data")
 aggregated_data_dataset = Dataset("aggregated_astronaut_weather_data")
+
 
 # Helper functions for weather data fetching
 def _try_weather_apis(latitude: float, longitude: float, timeout: int) -> dict:
@@ -135,6 +135,7 @@ def _try_weather_apis(latitude: float, longitude: float, timeout: int) -> dict:
     print("❌ All weather APIs failed")
     return None
 
+
 def _get_fallback_weather_data() -> dict:
     """
     Returns fallback weather data for Houston, TX (NASA Johnson Space Center)
@@ -211,9 +212,7 @@ def example_astronauts():
         r.raise_for_status()
         number_of_people_in_space = r.json()["number"]
         list_of_people_in_space = r.json()["people"]
-        print(
-                f"Successfully retrieved data for {number_of_people_in_space} astronauts"
-            )
+        print(f"Successfully retrieved data for {number_of_people_in_space} astronauts")
 
         context["ti"].xcom_push(
             key="number_of_people_in_space", value=number_of_people_in_space
@@ -970,6 +969,355 @@ def example_astronauts():
 
         return summary_report
 
+    @task(
+        # Define a dataset outlet for data quality validation results
+        outlets=[Dataset("data_quality_validation")]
+    )
+    def validate_data_quality(
+        astronaut_list: list[dict],
+        weather_data: dict,
+        calculated_stats: dict,
+        correlation_analysis: dict,
+        astronaut_stats: dict,
+    ) -> dict:
+        """
+        This task performs comprehensive data quality validation across all
+        data sources. It checks for completeness, accuracy, consistency, and
+        timeliness of data, providing a detailed validation report with
+        pass/fail status for each check.
+        """
+        validation_results = {
+            "validation_timestamp": str(datetime.now()),
+            "overall_status": "PASS",
+            "total_checks": 0,
+            "passed_checks": 0,
+            "failed_checks": 0,
+            "warnings": 0,
+            "checks": [],
+        }
+
+        def add_check(
+            category: str,
+            check_name: str,
+            status: str,
+            details: str,
+            severity: str = "ERROR",
+        ):
+            """Helper function to add validation checks"""
+            validation_results["checks"].append(
+                {
+                    "category": category,
+                    "check_name": check_name,
+                    "status": status,
+                    "details": details,
+                    "severity": severity,
+                }
+            )
+            validation_results["total_checks"] += 1
+            if status == "PASS":
+                validation_results["passed_checks"] += 1
+            elif status == "FAIL":
+                validation_results["failed_checks"] += 1
+                if severity == "ERROR":
+                    validation_results["overall_status"] = "FAIL"
+            elif status == "WARN":
+                validation_results["warnings"] += 1
+
+        # ========== ASTRONAUT DATA VALIDATION ==========
+        # Check 1: Astronaut list is not empty
+        if astronaut_list and len(astronaut_list) > 0:
+            add_check(
+                "Astronaut Data",
+                "Non-empty astronaut list",
+                "PASS",
+                f"Found {len(astronaut_list)} astronauts",
+            )
+        else:
+            add_check(
+                "Astronaut Data",
+                "Non-empty astronaut list",
+                "FAIL",
+                "No astronaut data available",
+            )
+
+        # Check 2: All astronauts have required fields
+        required_fields = ["name", "craft"]
+        all_fields_present = all(
+            all(field in person for field in required_fields)
+            for person in astronaut_list
+        )
+        if all_fields_present:
+            add_check(
+                "Astronaut Data",
+                "Required fields present",
+                "PASS",
+                "All astronauts have name and craft fields",
+            )
+        else:
+            add_check(
+                "Astronaut Data",
+                "Required fields present",
+                "FAIL",
+                "Some astronauts missing required fields",
+            )
+
+        # Check 3: Validate astronaut count consistency
+        total_from_stats = astronaut_stats.get("total_astronauts", 0)
+        if len(astronaut_list) == total_from_stats:
+            add_check(
+                "Astronaut Data",
+                "Count consistency",
+                "PASS",
+                f"Astronaut count matches across sources: {len(astronaut_list)}",
+            )
+        else:
+            add_check(
+                "Astronaut Data",
+                "Count consistency",
+                "WARN",
+                f"Count mismatch: list={len(astronaut_list)}, stats={total_from_stats}",
+                "WARNING",
+            )
+
+        # ========== WEATHER DATA VALIDATION ==========
+        # Check 4: Weather data is not empty
+        if weather_data:
+            add_check(
+                "Weather Data", "Data availability", "PASS", "Weather data retrieved"
+            )
+        else:
+            add_check(
+                "Weather Data",
+                "Data availability",
+                "FAIL",
+                "Weather data is missing",
+            )
+
+        # Check 5: Weather data has no errors
+        if not weather_data.get("error"):
+            add_check(
+                "Weather Data",
+                "API error check",
+                "PASS",
+                "No errors in weather API response",
+            )
+        else:
+            add_check(
+                "Weather Data",
+                "API error check",
+                "WARN",
+                f"Weather API error: {weather_data.get('error')}",
+                "WARNING",
+            )
+
+        # Check 6: Temperature is within reasonable range
+        temperature = weather_data.get("temperature_celsius", 0)
+        if -50 <= temperature <= 60:
+            add_check(
+                "Weather Data",
+                "Temperature range",
+                "PASS",
+                f"Temperature within normal range: {temperature}°C",
+            )
+        else:
+            add_check(
+                "Weather Data",
+                "Temperature range",
+                "WARN",
+                f"Temperature outside expected range: {temperature}°C",
+                "WARNING",
+            )
+
+        # Check 7: Pressure is within reasonable range
+        pressure = weather_data.get("pressure_hpa", 0)
+        if 950 <= pressure <= 1050:
+            add_check(
+                "Weather Data",
+                "Pressure range",
+                "PASS",
+                f"Pressure within normal range: {pressure} hPa",
+            )
+        else:
+            add_check(
+                "Weather Data",
+                "Pressure range",
+                "WARN",
+                f"Pressure outside expected range: {pressure} hPa",
+                "WARNING",
+            )
+
+        # ========== STATISTICAL DATA VALIDATION ==========
+        # Check 8: Calculated statistics are complete
+        required_stat_keys = [
+            "basic_metrics",
+            "central_tendency",
+            "variability_measures",
+            "distribution_analysis",
+        ]
+        stats_complete = all(key in calculated_stats for key in required_stat_keys)
+        if stats_complete:
+            add_check(
+                "Statistical Data",
+                "Completeness",
+                "PASS",
+                "All statistical sections present",
+            )
+        else:
+            add_check(
+                "Statistical Data",
+                "Completeness",
+                "FAIL",
+                "Some statistical sections missing",
+            )
+
+        # Check 9: Variance and standard deviation are non-negative
+        variance = calculated_stats.get("variability_measures", {}).get("variance", -1)
+        std_dev = calculated_stats.get("variability_measures", {}).get(
+            "standard_deviation", -1
+        )
+        if variance >= 0 and std_dev >= 0:
+            add_check(
+                "Statistical Data",
+                "Valid variance/std dev",
+                "PASS",
+                f"Variance={variance:.2f}, StdDev={std_dev:.2f}",
+            )
+        else:
+            add_check(
+                "Statistical Data",
+                "Valid variance/std dev",
+                "FAIL",
+                "Negative variance or standard deviation detected",
+            )
+
+        # Check 10: Capacity utilization is within 0-100%
+        capacity = calculated_stats.get("capacity_metrics", {}).get(
+            "current_utilization_percent", -1
+        )
+        if 0 <= capacity <= 100:
+            add_check(
+                "Statistical Data",
+                "Valid capacity utilization",
+                "PASS",
+                f"Capacity utilization: {capacity:.2f}%",
+            )
+        else:
+            add_check(
+                "Statistical Data",
+                "Valid capacity utilization",
+                "FAIL",
+                f"Invalid capacity utilization: {capacity:.2f}%",
+            )
+
+        # ========== CORRELATION ANALYSIS VALIDATION ==========
+        # Check 11: Correlation analysis has insights
+        insights = correlation_analysis.get("observational_insights", [])
+        if insights and len(insights) > 0:
+            add_check(
+                "Correlation Analysis",
+                "Insights generated",
+                "PASS",
+                f"Generated {len(insights)} insights",
+            )
+        else:
+            add_check(
+                "Correlation Analysis",
+                "Insights generated",
+                "WARN",
+                "No insights generated",
+                "WARNING",
+            )
+
+        # Check 12: Data quality score is valid
+        quality_score = correlation_analysis.get("data_quality_score", -1)
+        if 0 <= quality_score <= 100:
+            if quality_score >= 80:
+                status = "PASS"
+                details = f"Excellent data quality: {quality_score}/100"
+            elif quality_score >= 60:
+                status = "WARN"
+                details = f"Acceptable data quality: {quality_score}/100"
+                severity = "WARNING"
+            else:
+                status = "FAIL"
+                details = f"Poor data quality: {quality_score}/100"
+                severity = "ERROR"
+            add_check(
+                "Correlation Analysis",
+                "Data quality score",
+                status,
+                details,
+                severity if status != "PASS" else "ERROR",
+            )
+        else:
+            add_check(
+                "Correlation Analysis",
+                "Data quality score",
+                "FAIL",
+                f"Invalid quality score: {quality_score}",
+            )
+
+        # Calculate pass rate
+        pass_rate = (
+            (validation_results["passed_checks"] / validation_results["total_checks"])
+            * 100
+            if validation_results["total_checks"] > 0
+            else 0
+        )
+        validation_results["pass_rate_percent"] = round(pass_rate, 2)
+
+        # Print validation report
+        print("\n")
+        print("=" * 90)
+        print("╔" + "═" * 88 + "╗")
+        print("║" + " " * 25 + "DATA QUALITY VALIDATION REPORT" + " " * 33 + "║")
+        print("╚" + "═" * 88 + "╝")
+        print("=" * 90)
+
+        print("\n🔍 VALIDATION SUMMARY:")
+        print(f"  • Overall Status: {validation_results['overall_status']}")
+        print(f"  • Total Checks: {validation_results['total_checks']}")
+        print(f"  • Passed: {validation_results['passed_checks']} ✅")
+        print(f"  • Failed: {validation_results['failed_checks']} ❌")
+        print(f"  • Warnings: {validation_results['warnings']} ⚠️")
+        print(f"  • Pass Rate: {validation_results['pass_rate_percent']}%")
+
+        print("\n" + "=" * 90)
+        print("VALIDATION CHECKS BY CATEGORY")
+        print("=" * 90)
+
+        # Group checks by category
+        categories = {}
+        for check in validation_results["checks"]:
+            cat = check["category"]
+            if cat not in categories:
+                categories[cat] = []
+            categories[cat].append(check)
+
+        for category, checks in categories.items():
+            print(f"\n📋 {category.upper()}")
+            print("-" * 90)
+            for check in checks:
+                status_icon = (
+                    "✅"
+                    if check["status"] == "PASS"
+                    else "❌"
+                    if check["status"] == "FAIL"
+                    else "⚠️"
+                )
+                print(f"  {status_icon} {check['check_name']}: {check['status']}")
+                print(f"     └─ {check['details']}")
+
+        print("\n" + "=" * 90)
+        if validation_results["overall_status"] == "PASS":
+            print("✅ ALL CRITICAL VALIDATIONS PASSED - DATA QUALITY CONFIRMED")
+        else:
+            print("❌ VALIDATION FAILED - REVIEW ERRORS ABOVE")
+        print("=" * 90)
+        print("\n")
+
+        return validation_results
+
     @task
     def print_astronaut_craft(greeting: str, person_in_space: dict) -> None:
         """
@@ -1003,6 +1351,15 @@ def example_astronauts():
     # (produces correlation_analysis Dataset)
     correlation_result = analyze_correlation(
         astronaut_statistics, weather_info, calculated_statistics
+    )
+
+    # Validate data quality across all sources (produces data_quality_validation Dataset)
+    validate_data_quality(
+        astronaut_list,
+        weather_info,
+        calculated_statistics,
+        correlation_result,
+        astronaut_statistics,
     )
 
     # Generate comprehensive summary report combining all data sources

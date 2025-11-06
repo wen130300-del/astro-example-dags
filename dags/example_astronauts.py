@@ -2225,6 +2225,329 @@ def example_astronauts():
         return dashboard
 
     @task(
+        # Define a dataset outlet for regression model predictions
+        outlets=[Dataset("regression_predictions")]
+    )
+    def build_regression_model(
+        astronaut_list: list[dict],
+        calculated_stats: dict,
+        trend_calculations: dict,
+        weather_data: dict,
+        **context,
+    ) -> dict:
+        """
+        This task builds a simple linear regression model to predict astronaut counts
+        based on historical patterns and weather correlations. Uses least squares method
+        to fit a trend line and generates predictions.
+        """
+        # Import datetime for timestamp handling
+
+        execution_date = context.get("ds", "N/A")
+
+        # ========== DATA PREPARATION ==========
+        # Extract features for regression
+        total_astronauts = calculated_stats.get("total_astronauts", 0)
+        calculated_stats.get("spacecraft_count", 0)
+        calculated_stats.get("mean_astronauts_per_craft", 0)
+        capacity_utilization = calculated_stats.get("capacity_utilization_rate", 0)
+
+        # Weather features (normalized)
+        temperature = weather_data.get("temperature_celsius", 20)
+        humidity = weather_data.get("humidity_percent", 50)
+        pressure = weather_data.get("pressure_hpa", 1013)
+
+        # Trend features
+        growth_rate = trend_calculations.get("growth_rate", {}).get("rate_of_change", 0)
+        momentum = trend_calculations.get("momentum_indicators", {}).get(
+            "momentum_score", 50
+        )
+
+        print("\n")
+        print("╔" + "═" * 98 + "╗")
+        print("║" + " " * 34 + "REGRESSION MODEL BUILDER" + " " * 39 + "║")
+        print("╠" + "═" * 98 + "╣")
+        print("║" + f" Analysis Date: {execution_date}".ljust(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+
+        # ========== SIMPLE LINEAR REGRESSION ==========
+        # Create synthetic historical data points based on current metrics and trends
+        # Simulating the last 10 time periods
+        historical_periods = 10
+
+        # Generate historical data points using current trends
+        x_values = list(range(1, historical_periods + 1))  # Time periods
+        y_values = []  # Astronaut counts
+
+        # Simulate historical values with a trend
+        base_count = max(1, total_astronauts - historical_periods // 2)
+        trend_step = growth_rate / 100 if growth_rate != 0 else 0.1
+
+        for i in range(historical_periods):
+            # Add some variance based on weather and momentum
+            weather_factor = (temperature - 20) / 100  # Normalize around 20°C
+            momentum_factor = (momentum - 50) / 100  # Normalize around 50
+
+            historical_value = (
+                base_count + (i * trend_step) + weather_factor + momentum_factor
+            )
+            y_values.append(max(0, historical_value))
+
+        # Calculate regression coefficients using least squares method
+        n = len(x_values)
+        sum_x = sum(x_values)
+        sum_y = sum(y_values)
+        sum_xy = sum(x * y for x, y in zip(x_values, y_values, strict=False))
+        sum_x_squared = sum(x * x for x in x_values)
+
+        # Calculate slope (m) and intercept (b) for y = mx + b
+        if n * sum_x_squared - sum_x * sum_x != 0:
+            slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x_squared - sum_x * sum_x)
+            intercept = (sum_y - slope * sum_x) / n
+        else:
+            slope = 0
+            intercept = sum_y / n if n > 0 else 0
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " REGRESSION MODEL COEFFICIENTS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(f"  📐 Model Equation: y = {slope:.4f}x + {intercept:.4f}")
+        print(f"  📊 Slope (m): {slope:.4f}")
+        print(f"  📍 Intercept (b): {intercept:.4f}")
+        print(f"  📈 Historical Data Points: {n}")
+
+        # ========== CALCULATE R-SQUARED (COEFFICIENT OF DETERMINATION) ==========
+        # Calculate predicted values
+        y_predicted = [slope * x + intercept for x in x_values]
+
+        # Calculate mean of actual values
+        y_mean = sum_y / n
+
+        # Calculate total sum of squares (SS_tot)
+        ss_tot = sum((y - y_mean) ** 2 for y in y_values)
+
+        # Calculate residual sum of squares (SS_res)
+        ss_res = sum(
+            (y - y_pred) ** 2 for y, y_pred in zip(y_values, y_predicted, strict=False)
+        )
+
+        # Calculate R-squared
+        r_squared = 1 - (ss_res / ss_tot) if ss_tot != 0 else 0
+
+        # Calculate correlation coefficient
+        correlation = r_squared**0.5 if r_squared >= 0 else -((-r_squared) ** 0.5)
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " MODEL ACCURACY METRICS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+        print(f"  🎯 R-Squared (R²): {r_squared:.4f}")
+        print(f"  🔗 Correlation Coefficient (r): {correlation:.4f}")
+        print(
+            f"  📊 Model Fit: {'Excellent' if r_squared > 0.9 else 'Good' if r_squared > 0.7 else 'Moderate' if r_squared > 0.5 else 'Poor'}"
+        )
+
+        # ========== GENERATE PREDICTIONS ==========
+        # Predict for next 5 time periods
+        future_periods = [historical_periods + i for i in range(1, 6)]
+        predictions = []
+
+        for period in future_periods:
+            predicted_value = slope * period + intercept
+
+            # Apply weather and momentum adjustments
+            weather_adjustment = (temperature - 20) / 50
+            momentum_adjustment = (momentum - 50) / 100
+            adjusted_prediction = (
+                predicted_value + weather_adjustment + momentum_adjustment
+            )
+
+            # Calculate confidence interval (simple approximation)
+            # Using standard error estimation
+            residuals = [
+                y - y_pred for y, y_pred in zip(y_values, y_predicted, strict=False)
+            ]
+            standard_error = (
+                (sum(r**2 for r in residuals) / (n - 2)) ** 0.5 if n > 2 else 1
+            )
+
+            confidence_margin = 1.96 * standard_error  # 95% confidence interval
+
+            predictions.append(
+                {
+                    "period": period,
+                    "predicted_astronauts": max(0, adjusted_prediction),
+                    "lower_bound": max(0, adjusted_prediction - confidence_margin),
+                    "upper_bound": adjusted_prediction + confidence_margin,
+                    "confidence_interval": "95%",
+                }
+            )
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " FUTURE PREDICTIONS (Next 5 Periods)".center(98) + "│")
+        print("└" + "─" + "─" * 96 + "┘")
+        print(
+            "  Period | Predicted Astronauts | Lower Bound (95% CI) | Upper Bound (95% CI)"
+        )
+        print("  " + "─" * 76)
+
+        for pred in predictions:
+            print(
+                f"    {pred['period']:3d}  |        {pred['predicted_astronauts']:6.2f}        |        {pred['lower_bound']:6.2f}         |        {pred['upper_bound']:6.2f}"
+            )
+
+        # ========== FEATURE IMPORTANCE ANALYSIS ==========
+        # Calculate normalized feature contributions
+        features = {
+            "trend_growth": abs(growth_rate) / 100,
+            "momentum": abs(momentum - 50) / 100,
+            "temperature": abs(temperature - 20) / 50,
+            "humidity": abs(humidity - 50) / 100,
+            "pressure": abs(pressure - 1013) / 100,
+            "capacity_utilization": capacity_utilization / 100,
+        }
+
+        # Normalize feature importance
+        total_importance = sum(features.values())
+        feature_importance = (
+            {k: (v / total_importance) * 100 for k, v in features.items()}
+            if total_importance > 0
+            else {k: 0 for k in features}
+        )
+
+        # Sort by importance
+        sorted_features = sorted(
+            feature_importance.items(), key=lambda x: x[1], reverse=True
+        )
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " FEATURE IMPORTANCE ANALYSIS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        for feature_name, importance in sorted_features:
+            bar_length = int(importance / 2)  # Scale to max 50 chars
+            bar = "█" * bar_length
+            print(
+                f"  {feature_name.replace('_', ' ').title():25s} │ {bar} {importance:5.2f}%"
+            )
+
+        # ========== MODEL INSIGHTS ==========
+        # Determine trend direction
+        if slope > 0.1:
+            trend_direction = "Increasing"
+            trend_icon = "📈"
+        elif slope < -0.1:
+            trend_direction = "Decreasing"
+            trend_icon = "📉"
+        else:
+            trend_direction = "Stable"
+            trend_icon = "📊"
+
+        # Generate insights
+        insights = []
+
+        if r_squared > 0.8:
+            insights.append("✅ Model shows strong predictive accuracy (R² > 0.8)")
+        elif r_squared > 0.5:
+            insights.append("⚠️  Model shows moderate predictive accuracy (R² > 0.5)")
+        else:
+            insights.append(
+                "❌ Model shows weak predictive accuracy (R² < 0.5) - high variance expected"
+            )
+
+        if abs(slope) > 0.5:
+            insights.append(
+                f"{trend_icon} Strong {trend_direction.lower()} trend detected (slope: {slope:.3f})"
+            )
+        else:
+            insights.append(
+                f"{trend_icon} Weak or stable trend detected (slope: {slope:.3f})"
+            )
+
+        # Weather correlation insight
+        top_feature = sorted_features[0]
+        insights.append(
+            f"🔍 Top influencing factor: {top_feature[0].replace('_', ' ').title()} ({top_feature[1]:.1f}% importance)"
+        )
+
+        # Prediction confidence
+        avg_prediction = sum(p["predicted_astronauts"] for p in predictions) / len(
+            predictions
+        )
+        if avg_prediction > total_astronauts * 1.2:
+            insights.append(
+                "⚠️  Model predicts significant growth in astronaut population"
+            )
+        elif avg_prediction < total_astronauts * 0.8:
+            insights.append(
+                "⚠️  Model predicts significant decline in astronaut population"
+            )
+        else:
+            insights.append(
+                "✅ Model predicts stable astronaut population with minor fluctuations"
+            )
+
+        print("\n" + "┌" + "─" * 98 + "┐")
+        print("│" + " MODEL INSIGHTS & RECOMMENDATIONS".center(98) + "│")
+        print("└" + "─" * 98 + "┘")
+
+        for i, insight in enumerate(insights, 1):
+            print(f"  {i}. {insight}")
+
+        # ========== COMPILE RESULTS ==========
+        regression_results = {
+            "model_metadata": {
+                "generated_at": execution_date,
+                "model_type": "Linear Regression (Least Squares)",
+                "training_periods": historical_periods,
+                "prediction_periods": len(predictions),
+            },
+            "model_coefficients": {
+                "slope": slope,
+                "intercept": intercept,
+                "equation": f"y = {slope:.4f}x + {intercept:.4f}",
+            },
+            "accuracy_metrics": {
+                "r_squared": r_squared,
+                "correlation_coefficient": correlation,
+                "standard_error": standard_error if n > 2 else None,
+                "model_fit_quality": (
+                    "Excellent"
+                    if r_squared > 0.9
+                    else "Good"
+                    if r_squared > 0.7
+                    else "Moderate"
+                    if r_squared > 0.5
+                    else "Poor"
+                ),
+            },
+            "historical_data": {
+                "x_values": x_values,
+                "y_values": y_values,
+                "y_predicted": y_predicted,
+            },
+            "predictions": predictions,
+            "feature_importance": dict(sorted_features),
+            "insights": insights,
+            "trend_analysis": {
+                "direction": trend_direction,
+                "slope_magnitude": abs(slope),
+                "trend_strength": (
+                    "Strong"
+                    if abs(slope) > 0.5
+                    else "Moderate"
+                    if abs(slope) > 0.2
+                    else "Weak"
+                ),
+            },
+        }
+
+        print("\n" + "╔" + "═" * 98 + "╗")
+        print("║" + " REGRESSION MODEL COMPLETED SUCCESSFULLY".center(98) + "║")
+        print("╚" + "═" * 98 + "╝")
+        print("\n")
+
+        return regression_results
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -3089,6 +3412,14 @@ def example_astronauts():
 
     # Fetch weather data independently (produces weather_data Dataset)
     weather_info = get_weather_data()
+
+    # Build regression model for predictions (produces regression_predictions Dataset)
+    build_regression_model(
+        astronaut_list,
+        calculated_statistics,
+        trend_calculations_result,
+        weather_info,
+    )
 
     # Analyze correlation between astronaut, weather, and calculated statistics data
     # (produces correlation_analysis Dataset)

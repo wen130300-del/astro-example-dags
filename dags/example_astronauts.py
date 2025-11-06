@@ -754,6 +754,452 @@ def example_astronauts():
         return statistical_methods_results
 
     @task(
+        # Define a dataset outlet for comprehensive analysis
+        outlets=[Dataset("comprehensive_analysis")]
+    )
+    def perform_comprehensive_analysis(
+        astronaut_list: list[dict],
+        astronaut_stats: dict,
+        calculated_stats: dict,
+        statistical_methods: dict,
+        **context,
+    ) -> dict:
+        """
+        This task performs comprehensive multi-dimensional analysis combining
+        data from multiple sources. It provides trend analysis, anomaly detection,
+        risk assessment, efficiency metrics, and strategic recommendations.
+        """
+        from datetime import datetime as dt
+
+        # Extract execution context
+        execution_date = context.get("execution_date", dt.now())
+        total_astronauts = context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Extract data from all sources
+        spacecraft_distribution = astronaut_stats.get("spacecraft_distribution", {})
+        mean_per_craft = calculated_stats.get("central_tendency", {}).get(
+            "mean_astronauts_per_craft", 0
+        )
+        std_dev = calculated_stats.get("variability_measures", {}).get(
+            "standard_deviation", 0
+        )
+        distribution_pattern = calculated_stats.get("distribution_analysis", {}).get(
+            "pattern", "unknown"
+        )
+        capacity_utilization = calculated_stats.get("capacity_metrics", {}).get(
+            "current_utilization_percent", 0
+        )
+
+        # Statistical methods data
+        outliers = statistical_methods.get("quartile_analysis", {}).get("outliers", [])
+        z_scores = statistical_methods.get("z_score_analysis", {}).get(
+            "by_spacecraft", {}
+        )
+        skewness = statistical_methods.get("shape_measures", {}).get("skewness", 0)
+        is_normal = statistical_methods.get("distribution_tests", {}).get(
+            "likely_normal_distribution", False
+        )
+
+        # ========== TREND ANALYSIS ==========
+        # Analyze crew size trends
+        crew_sizes = list(spacecraft_distribution.values())
+        trend_direction = "stable"
+        if crew_sizes:
+            sorted_sizes = sorted(crew_sizes, reverse=True)
+            if len(sorted_sizes) >= 2:
+                top_diff = sorted_sizes[0] - sorted_sizes[-1]
+                if top_diff > mean_per_craft:
+                    trend_direction = "concentrated"  # Few spacecraft with many crew
+                elif std_dev < mean_per_craft * 0.3:
+                    trend_direction = "distributed"  # Even distribution
+
+        # Capacity trend
+        capacity_trend = "nominal"
+        if capacity_utilization < 30:
+            capacity_trend = "underutilized"
+        elif capacity_utilization > 70:
+            capacity_trend = "high_utilization"
+        elif 40 <= capacity_utilization <= 60:
+            capacity_trend = "optimal"
+
+        # ========== ANOMALY DETECTION ==========
+        anomalies = []
+
+        # Detect outlier spacecraft
+        if outliers:
+            anomalies.append(
+                {
+                    "type": "statistical_outlier",
+                    "severity": "medium",
+                    "description": f"{len(outliers)} spacecraft with unusual crew sizes detected",
+                    "values": outliers,
+                }
+            )
+
+        # Detect extreme z-scores
+        extreme_z_scores = {craft: z for craft, z in z_scores.items() if abs(z) > 2}
+        if extreme_z_scores:
+            anomalies.append(
+                {
+                    "type": "extreme_deviation",
+                    "severity": "high",
+                    "description": f"{len(extreme_z_scores)} spacecraft significantly deviate from mean",
+                    "details": extreme_z_scores,
+                }
+            )
+
+        # Detect imbalanced distribution
+        if abs(skewness) > 1.0:
+            anomalies.append(
+                {
+                    "type": "distribution_skew",
+                    "severity": "low",
+                    "description": f"Highly skewed distribution (skewness: {skewness:.2f})",
+                    "impact": "Crew allocation may be imbalanced",
+                }
+            )
+
+        # Detect low astronaut count
+        if total_astronauts < 5:
+            anomalies.append(
+                {
+                    "type": "low_crew_count",
+                    "severity": "medium",
+                    "description": f"Low total astronaut count: {total_astronauts}",
+                    "impact": "Reduced operational capacity",
+                }
+            )
+
+        # ========== RISK ASSESSMENT ==========
+        risk_factors = []
+        risk_score = 0
+
+        # Capacity risk
+        if capacity_utilization > 80:
+            risk_factors.append(
+                {
+                    "risk": "overcapacity",
+                    "level": "high",
+                    "impact": "Limited flexibility for mission expansion",
+                    "mitigation": "Plan crew rotation or additional spacecraft",
+                }
+            )
+            risk_score += 30
+        elif capacity_utilization < 20:
+            risk_factors.append(
+                {
+                    "risk": "underutilization",
+                    "level": "medium",
+                    "impact": "Inefficient resource allocation",
+                    "mitigation": "Increase mission frequency or consolidate resources",
+                }
+            )
+            risk_score += 15
+
+        # Distribution risk
+        if not is_normal and len(outliers) > 0:
+            risk_factors.append(
+                {
+                    "risk": "uneven_distribution",
+                    "level": "medium",
+                    "impact": "Potential operational inefficiencies",
+                    "mitigation": "Review crew allocation strategy",
+                }
+            )
+            risk_score += 20
+
+        # Concentration risk
+        if spacecraft_distribution:
+            max_crew_pct = (
+                max(spacecraft_distribution.values()) / total_astronauts * 100
+            )
+            if max_crew_pct > 70:
+                risk_factors.append(
+                    {
+                        "risk": "crew_concentration",
+                        "level": "high",
+                        "impact": f"{max_crew_pct:.0f}% of crew on single spacecraft",
+                        "mitigation": "Diversify crew across multiple spacecraft",
+                    }
+                )
+                risk_score += 35
+
+        # Calculate overall risk level
+        if risk_score >= 50:
+            overall_risk = "HIGH"
+        elif risk_score >= 30:
+            overall_risk = "MEDIUM"
+        else:
+            overall_risk = "LOW"
+
+        # ========== EFFICIENCY METRICS ==========
+        efficiency_metrics = {
+            "capacity_efficiency": capacity_utilization,
+            "distribution_efficiency": 100
+            - (std_dev / mean_per_craft * 100 if mean_per_craft > 0 else 0),
+            "spacecraft_utilization_rate": (
+                len([v for v in crew_sizes if v > 0])
+                / len(spacecraft_distribution)
+                * 100
+                if spacecraft_distribution
+                else 0
+            ),
+        }
+
+        # Overall efficiency score (weighted average)
+        overall_efficiency = (
+            efficiency_metrics["capacity_efficiency"] * 0.4
+            + efficiency_metrics["distribution_efficiency"] * 0.4
+            + efficiency_metrics["spacecraft_utilization_rate"] * 0.2
+        )
+
+        # ========== PREDICTIVE INSIGHTS ==========
+        predictions = []
+
+        if capacity_trend == "high_utilization":
+            predictions.append(
+                {
+                    "insight": "Approaching capacity limits",
+                    "timeframe": "near_term",
+                    "confidence": "high",
+                    "recommendation": "Prepare for crew rotation or additional capacity",
+                }
+            )
+
+        if trend_direction == "concentrated":
+            predictions.append(
+                {
+                    "insight": "Crew concentration increasing",
+                    "timeframe": "current",
+                    "confidence": "medium",
+                    "recommendation": "Consider load balancing across spacecraft",
+                }
+            )
+
+        if overall_efficiency < 60:
+            predictions.append(
+                {
+                    "insight": "Efficiency below optimal levels",
+                    "timeframe": "current",
+                    "confidence": "high",
+                    "recommendation": "Review resource allocation and mission planning",
+                }
+            )
+
+        # ========== STRATEGIC RECOMMENDATIONS ==========
+        recommendations = []
+
+        # Capacity recommendations
+        if capacity_utilization < 30:
+            recommendations.append(
+                {
+                    "priority": "medium",
+                    "category": "capacity_planning",
+                    "action": "Increase mission frequency to improve resource utilization",
+                    "expected_impact": "15-25% efficiency gain",
+                }
+            )
+        elif capacity_utilization > 80:
+            recommendations.append(
+                {
+                    "priority": "high",
+                    "category": "capacity_planning",
+                    "action": "Expand capacity or implement strict crew rotation schedule",
+                    "expected_impact": "Prevent operational constraints",
+                }
+            )
+
+        # Distribution recommendations
+        if not is_normal:
+            recommendations.append(
+                {
+                    "priority": "medium",
+                    "category": "crew_allocation",
+                    "action": "Rebalance crew distribution to achieve normal distribution",
+                    "expected_impact": "Improved operational efficiency",
+                }
+            )
+
+        # Risk mitigation recommendations
+        if overall_risk == "HIGH":
+            recommendations.append(
+                {
+                    "priority": "high",
+                    "category": "risk_mitigation",
+                    "action": "Address identified high-risk factors immediately",
+                    "expected_impact": "Reduce operational risk by 30-40%",
+                }
+            )
+
+        # Efficiency recommendations
+        if overall_efficiency < 70:
+            recommendations.append(
+                {
+                    "priority": "high",
+                    "category": "efficiency_improvement",
+                    "action": "Implement efficiency optimization program",
+                    "expected_impact": f"Potential to reach 85%+ efficiency from current {overall_efficiency:.1f}%",
+                }
+            )
+
+        # ========== COMPILE COMPREHENSIVE ANALYSIS ==========
+        comprehensive_analysis = {
+            "analysis_metadata": {
+                "analysis_date": str(execution_date),
+                "data_sources": 4,
+                "astronaut_count": total_astronauts,
+            },
+            "trend_analysis": {
+                "crew_distribution_trend": trend_direction,
+                "capacity_trend": capacity_trend,
+                "distribution_pattern": distribution_pattern,
+            },
+            "anomaly_detection": {
+                "anomalies_detected": len(anomalies),
+                "anomalies": anomalies,
+            },
+            "risk_assessment": {
+                "overall_risk_level": overall_risk,
+                "risk_score": risk_score,
+                "risk_factors": risk_factors,
+            },
+            "efficiency_metrics": {
+                "overall_efficiency_score": round(overall_efficiency, 2),
+                "capacity_efficiency": round(
+                    efficiency_metrics["capacity_efficiency"], 2
+                ),
+                "distribution_efficiency": round(
+                    efficiency_metrics["distribution_efficiency"], 2
+                ),
+                "spacecraft_utilization": round(
+                    efficiency_metrics["spacecraft_utilization_rate"], 2
+                ),
+            },
+            "predictive_insights": predictions,
+            "strategic_recommendations": recommendations,
+        }
+
+        # ========== PRINT COMPREHENSIVE ANALYSIS REPORT ==========
+        print("\n")
+        print("=" * 90)
+        print("╔" + "═" * 88 + "╗")
+        print("║" + " " * 25 + "COMPREHENSIVE ANALYSIS REPORT" + " " * 34 + "║")
+        print("╚" + "═" * 88 + "╝")
+        print("=" * 90)
+
+        print("\n📅 ANALYSIS METADATA:")
+        print(f"  • Analysis Date: {execution_date}")
+        print(f"  • Total Astronauts: {total_astronauts}")
+        print(
+            f"  • Data Sources Analyzed: {comprehensive_analysis['analysis_metadata']['data_sources']}"
+        )
+
+        print("\n" + "=" * 90)
+        print("SECTION 1: TREND ANALYSIS")
+        print("=" * 90)
+        print(f"  • Crew Distribution Trend: {trend_direction.upper()}")
+        print(f"  • Capacity Trend: {capacity_trend.upper()}")
+        print(
+            f"  • Distribution Pattern: {distribution_pattern.replace('_', ' ').title()}"
+        )
+
+        print("\n" + "=" * 90)
+        print("SECTION 2: ANOMALY DETECTION")
+        print("=" * 90)
+        print(f"  • Anomalies Detected: {len(anomalies)}")
+        if anomalies:
+            for i, anomaly in enumerate(anomalies, 1):
+                severity_icon = (
+                    "🔴"
+                    if anomaly["severity"] == "high"
+                    else "🟡"
+                    if anomaly["severity"] == "medium"
+                    else "🟢"
+                )
+                print(f"\n  {severity_icon} Anomaly {i}: {anomaly['type'].upper()}")
+                print(f"     Severity: {anomaly['severity'].upper()}")
+                print(f"     Description: {anomaly['description']}")
+        else:
+            print("  ✅ No anomalies detected - all metrics within normal ranges")
+
+        print("\n" + "=" * 90)
+        print("SECTION 3: RISK ASSESSMENT")
+        print("=" * 90)
+        risk_icon = (
+            "🔴"
+            if overall_risk == "HIGH"
+            else "🟡"
+            if overall_risk == "MEDIUM"
+            else "🟢"
+        )
+        print(f"  {risk_icon} Overall Risk Level: {overall_risk}")
+        print(f"  • Risk Score: {risk_score}/100")
+        print(f"  • Risk Factors Identified: {len(risk_factors)}")
+        if risk_factors:
+            for i, risk in enumerate(risk_factors, 1):
+                print(f"\n  Risk Factor {i}:")
+                print(f"     Type: {risk['risk'].replace('_', ' ').title()}")
+                print(f"     Level: {risk['level'].upper()}")
+                print(f"     Impact: {risk['impact']}")
+                print(f"     Mitigation: {risk['mitigation']}")
+
+        print("\n" + "=" * 90)
+        print("SECTION 4: EFFICIENCY METRICS")
+        print("=" * 90)
+        eff_icon = (
+            "🟢"
+            if overall_efficiency >= 80
+            else "🟡"
+            if overall_efficiency >= 60
+            else "🔴"
+        )
+        print(f"  {eff_icon} Overall Efficiency Score: {overall_efficiency:.2f}%")
+        print(
+            f"  • Capacity Efficiency: {efficiency_metrics['capacity_efficiency']:.2f}%"
+        )
+        print(
+            f"  • Distribution Efficiency: {efficiency_metrics['distribution_efficiency']:.2f}%"
+        )
+        print(
+            f"  • Spacecraft Utilization: {efficiency_metrics['spacecraft_utilization_rate']:.2f}%"
+        )
+
+        print("\n" + "=" * 90)
+        print("SECTION 5: PREDICTIVE INSIGHTS")
+        print("=" * 90)
+        if predictions:
+            for i, pred in enumerate(predictions, 1):
+                print(f"\n  🔮 Insight {i}:")
+                print(f"     Prediction: {pred['insight']}")
+                print(f"     Timeframe: {pred['timeframe'].replace('_', ' ').title()}")
+                print(f"     Confidence: {pred['confidence'].upper()}")
+                print(f"     Recommendation: {pred['recommendation']}")
+        else:
+            print("  • No predictive insights generated - current state is stable")
+
+        print("\n" + "=" * 90)
+        print("SECTION 6: STRATEGIC RECOMMENDATIONS")
+        print("=" * 90)
+        if recommendations:
+            for i, rec in enumerate(recommendations, 1):
+                priority_icon = "🔴" if rec["priority"] == "high" else "🟡"
+                print(
+                    f"\n  {priority_icon} Recommendation {i} (Priority: {rec['priority'].upper()}):"
+                )
+                print(f"     Category: {rec['category'].replace('_', ' ').title()}")
+                print(f"     Action: {rec['action']}")
+                print(f"     Expected Impact: {rec['expected_impact']}")
+        else:
+            print("  ✅ No specific recommendations - operations are optimal")
+
+        print("\n" + "=" * 90)
+        print("END OF COMPREHENSIVE ANALYSIS")
+        print("=" * 90)
+        print("\n")
+
+        return comprehensive_analysis
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -1599,7 +2045,17 @@ def example_astronauts():
     calculated_statistics = calculate_astronauts_stats(astronaut_list)
 
     # Perform advanced statistical methods analysis (produces statistical_methods Dataset)
-    perform_statistical_methods(astronaut_list, calculated_statistics)
+    statistical_methods_result = perform_statistical_methods(
+        astronaut_list, calculated_statistics
+    )
+
+    # Perform comprehensive analysis (produces comprehensive_analysis Dataset)
+    perform_comprehensive_analysis(
+        astronaut_list,
+        astronaut_statistics,
+        calculated_statistics,
+        statistical_methods_result,
+    )
 
     # Fetch weather data independently (produces weather_data Dataset)
     weather_info = get_weather_data()

@@ -1200,6 +1200,389 @@ def example_astronauts():
         return comprehensive_analysis
 
     @task(
+        # Define a dataset outlet for trend calculations
+        outlets=[Dataset("trend_calculations")]
+    )
+    def calculate_trends(
+        astronaut_list: list[dict],
+        calculated_stats: dict,
+        statistical_methods: dict,
+        **context,
+    ) -> dict:
+        """
+        This task calculates trends, growth rates, and temporal patterns in astronaut data.
+        It provides moving averages, rate of change calculations, trend direction analysis,
+        and forecasting indicators based on current data patterns.
+        """
+        from datetime import datetime as dt
+
+        # Extract execution context
+        execution_date = context.get("execution_date", dt.now())
+        total_astronauts = context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Collect spacecraft data
+        spacecraft_counts = {}
+        for person in astronaut_list:
+            craft = person["craft"]
+            spacecraft_counts[craft] = spacecraft_counts.get(craft, 0) + 1
+
+        # Extract statistical data
+        mean = calculated_stats.get("central_tendency", {}).get(
+            "mean_astronauts_per_craft", 0
+        )
+        std_dev = calculated_stats.get("variability_measures", {}).get(
+            "standard_deviation", 0
+        )
+        capacity_utilization = calculated_stats.get("capacity_metrics", {}).get(
+            "current_utilization_percent", 0
+        )
+
+        # Extract quartile data
+        q1 = statistical_methods.get("quartile_analysis", {}).get("q1_25th", 0)
+        q2 = statistical_methods.get("quartile_analysis", {}).get("q2_median", 0)
+        q3 = statistical_methods.get("quartile_analysis", {}).get("q3_75th", 0)
+
+        # ========== TREND BASELINE CALCULATIONS ==========
+        # Simulate historical baseline for trend analysis
+        # In production, this would query historical data from a database
+
+        # Calculate baseline (simulated as 80% of current for demonstration)
+        baseline_astronauts = int(total_astronauts * 0.8)
+        baseline_mean = mean * 0.85
+        baseline_capacity = capacity_utilization * 0.9
+
+        # ========== GROWTH RATE CALCULATIONS ==========
+        # Calculate growth rates (current vs baseline)
+        astronaut_growth_rate = (
+            ((total_astronauts - baseline_astronauts) / baseline_astronauts * 100)
+            if baseline_astronauts > 0
+            else 0
+        )
+
+        mean_growth_rate = (
+            ((mean - baseline_mean) / baseline_mean * 100) if baseline_mean > 0 else 0
+        )
+
+        capacity_growth_rate = (
+            ((capacity_utilization - baseline_capacity) / baseline_capacity * 100)
+            if baseline_capacity > 0
+            else 0
+        )
+
+        # ========== RATE OF CHANGE (VELOCITY) ==========
+        # Calculate velocity metrics
+        astronaut_velocity = total_astronauts - baseline_astronauts
+        mean_velocity = mean - baseline_mean
+        capacity_velocity = capacity_utilization - baseline_capacity
+
+        # ========== MOVING AVERAGE CALCULATIONS ==========
+        # Simulate moving averages (in production, use historical data)
+        crew_sizes = list(spacecraft_counts.values())
+
+        # Simple moving average (current snapshot)
+        sma_crew_size = sum(crew_sizes) / len(crew_sizes) if crew_sizes else 0
+
+        # Exponential moving average (weighted recent data)
+        # EMA = Price × (Smoothing / (1 + Days)) + EMA_yesterday × (1 - (Smoothing / (1 + Days)))
+        smoothing = 2
+        periods = 5
+        ema_multiplier = smoothing / (1 + periods)
+        ema_crew_size = sma_crew_size * ema_multiplier + baseline_mean * (
+            1 - ema_multiplier
+        )
+
+        # ========== TREND DIRECTION ANALYSIS ==========
+        trend_direction = "neutral"
+        trend_strength = "weak"
+
+        if astronaut_growth_rate > 10:
+            trend_direction = "strongly_increasing"
+            trend_strength = "strong"
+        elif astronaut_growth_rate > 5:
+            trend_direction = "increasing"
+            trend_strength = "moderate"
+        elif astronaut_growth_rate > 1:
+            trend_direction = "slightly_increasing"
+            trend_strength = "weak"
+        elif astronaut_growth_rate < -10:
+            trend_direction = "strongly_decreasing"
+            trend_strength = "strong"
+        elif astronaut_growth_rate < -5:
+            trend_direction = "decreasing"
+            trend_strength = "moderate"
+        elif astronaut_growth_rate < -1:
+            trend_direction = "slightly_decreasing"
+            trend_strength = "weak"
+
+        # ========== MOMENTUM INDICATORS ==========
+        # Calculate momentum score (0-100)
+        momentum_score = 50  # Neutral baseline
+
+        # Adjust based on growth rates
+        momentum_score += astronaut_growth_rate * 2
+        momentum_score += capacity_growth_rate * 0.5
+
+        # Clamp to 0-100
+        momentum_score = max(0, min(100, momentum_score))
+
+        # Momentum classification
+        if momentum_score > 70:
+            momentum_classification = "bullish"
+        elif momentum_score > 55:
+            momentum_classification = "slightly_bullish"
+        elif momentum_score < 30:
+            momentum_classification = "bearish"
+        elif momentum_score < 45:
+            momentum_classification = "slightly_bearish"
+        else:
+            momentum_classification = "neutral"
+
+        # ========== VOLATILITY ANALYSIS ==========
+        # Calculate coefficient of variation as volatility measure
+        volatility = (std_dev / mean * 100) if mean > 0 else 0
+
+        volatility_level = "low"
+        if volatility > 50:
+            volatility_level = "high"
+        elif volatility > 30:
+            volatility_level = "medium"
+
+        # ========== FORECASTING INDICATORS ==========
+        # Simple linear projection
+        projected_astronauts = total_astronauts + (astronaut_velocity * 0.5)
+        projected_capacity = capacity_utilization + (capacity_growth_rate * 0.3)
+
+        # Forecast confidence based on volatility
+        if volatility_level == "low":
+            forecast_confidence = "high"
+        elif volatility_level == "medium":
+            forecast_confidence = "medium"
+        else:
+            forecast_confidence = "low"
+
+        # ========== TREND PATTERNS ==========
+        patterns = []
+
+        # Detect growth pattern
+        if astronaut_growth_rate > 5 and capacity_growth_rate > 5:
+            patterns.append(
+                {
+                    "pattern": "expansion_phase",
+                    "description": "Both crew count and capacity utilization are increasing",
+                    "implication": "System is in growth mode",
+                }
+            )
+
+        # Detect consolidation pattern
+        if abs(astronaut_growth_rate) < 3 and volatility_level == "low":
+            patterns.append(
+                {
+                    "pattern": "consolidation",
+                    "description": "Stable crew levels with low volatility",
+                    "implication": "System is in steady state",
+                }
+            )
+
+        # Detect divergence pattern
+        if (
+            astronaut_growth_rate > 5
+            and capacity_growth_rate < -5
+            or astronaut_growth_rate < -5
+            and capacity_growth_rate > 5
+        ):
+            patterns.append(
+                {
+                    "pattern": "divergence",
+                    "description": "Crew count and capacity moving in opposite directions",
+                    "implication": "Potential efficiency imbalance",
+                }
+            )
+
+        # Detect saturation pattern
+        if capacity_utilization > 80 and capacity_growth_rate < 2:
+            patterns.append(
+                {
+                    "pattern": "saturation",
+                    "description": "High capacity utilization with slow growth",
+                    "implication": "Approaching operational limits",
+                }
+            )
+
+        # ========== COMPARATIVE METRICS ==========
+        # Compare current vs quartiles
+        quartile_position = "median"
+        if mean > q3:
+            quartile_position = "above_q3"
+        elif mean > q2:
+            quartile_position = "between_q2_q3"
+        elif mean > q1:
+            quartile_position = "between_q1_q2"
+        else:
+            quartile_position = "below_q1"
+
+        # ========== COMPILE TREND CALCULATIONS ==========
+        trend_calculations = {
+            "calculation_metadata": {
+                "calculation_date": str(execution_date),
+                "baseline_period": "simulated",
+                "current_astronauts": total_astronauts,
+            },
+            "growth_metrics": {
+                "astronaut_growth_rate_percent": round(astronaut_growth_rate, 2),
+                "mean_growth_rate_percent": round(mean_growth_rate, 2),
+                "capacity_growth_rate_percent": round(capacity_growth_rate, 2),
+            },
+            "velocity_metrics": {
+                "astronaut_velocity": round(astronaut_velocity, 2),
+                "mean_velocity": round(mean_velocity, 2),
+                "capacity_velocity": round(capacity_velocity, 2),
+            },
+            "moving_averages": {
+                "simple_moving_average": round(sma_crew_size, 2),
+                "exponential_moving_average": round(ema_crew_size, 2),
+                "difference_sma_ema": round(sma_crew_size - ema_crew_size, 2),
+            },
+            "trend_analysis": {
+                "direction": trend_direction,
+                "strength": trend_strength,
+                "momentum_score": round(momentum_score, 2),
+                "momentum_classification": momentum_classification,
+            },
+            "volatility_analysis": {
+                "volatility_percent": round(volatility, 2),
+                "volatility_level": volatility_level,
+            },
+            "forecast_indicators": {
+                "projected_astronauts": round(projected_astronauts, 2),
+                "projected_capacity_percent": round(projected_capacity, 2),
+                "forecast_confidence": forecast_confidence,
+            },
+            "patterns_detected": patterns,
+            "comparative_metrics": {
+                "quartile_position": quartile_position,
+                "vs_baseline_astronauts": total_astronauts - baseline_astronauts,
+                "vs_baseline_capacity": round(
+                    capacity_utilization - baseline_capacity, 2
+                ),
+            },
+        }
+
+        # ========== PRINT TREND CALCULATIONS REPORT ==========
+        print("\n")
+        print("=" * 90)
+        print("╔" + "═" * 88 + "╗")
+        print("║" + " " * 30 + "TREND CALCULATIONS REPORT" + " " * 33 + "║")
+        print("╚" + "═" * 88 + "╝")
+        print("=" * 90)
+
+        print("\n📅 CALCULATION METADATA:")
+        print(f"  • Calculation Date: {execution_date}")
+        print(f"  • Current Astronauts: {total_astronauts}")
+        print(f"  • Baseline Astronauts: {baseline_astronauts}")
+
+        print("\n" + "=" * 90)
+        print("SECTION 1: GROWTH METRICS")
+        print("=" * 90)
+        growth_icon = (
+            "📈"
+            if astronaut_growth_rate > 0
+            else "📉"
+            if astronaut_growth_rate < 0
+            else "➡️"
+        )
+        print(f"  {growth_icon} Astronaut Growth Rate: {astronaut_growth_rate:+.2f}%")
+        print(f"  {growth_icon} Mean Growth Rate: {mean_growth_rate:+.2f}%")
+        print(f"  {growth_icon} Capacity Growth Rate: {capacity_growth_rate:+.2f}%")
+
+        print("\n" + "=" * 90)
+        print("SECTION 2: VELOCITY METRICS (Rate of Change)")
+        print("=" * 90)
+        print(f"  • Astronaut Velocity: {astronaut_velocity:+.2f} astronauts/period")
+        print(f"  • Mean Velocity: {mean_velocity:+.2f} per spacecraft/period")
+        print(f"  • Capacity Velocity: {capacity_velocity:+.2f}%/period")
+
+        print("\n" + "=" * 90)
+        print("SECTION 3: MOVING AVERAGES")
+        print("=" * 90)
+        print(f"  • Simple Moving Average (SMA): {sma_crew_size:.2f}")
+        print(f"  • Exponential Moving Average (EMA): {ema_crew_size:.2f}")
+        print(f"  • SMA - EMA Difference: {sma_crew_size - ema_crew_size:+.2f}")
+        if sma_crew_size > ema_crew_size:
+            print("    → Short-term average above long-term (bullish signal)")
+        elif sma_crew_size < ema_crew_size:
+            print("    → Short-term average below long-term (bearish signal)")
+        else:
+            print("    → Averages aligned (neutral)")
+
+        print("\n" + "=" * 90)
+        print("SECTION 4: TREND ANALYSIS")
+        print("=" * 90)
+        print(f"  • Trend Direction: {trend_direction.replace('_', ' ').upper()}")
+        print(f"  • Trend Strength: {trend_strength.upper()}")
+        momentum_icon = (
+            "🚀"
+            if momentum_classification == "bullish"
+            else "📊"
+            if momentum_classification in ["slightly_bullish", "neutral"]
+            else "⚠️"
+        )
+        print(f"  {momentum_icon} Momentum Score: {momentum_score:.2f}/100")
+        print(
+            f"  • Momentum Classification: {momentum_classification.replace('_', ' ').upper()}"
+        )
+
+        print("\n" + "=" * 90)
+        print("SECTION 5: VOLATILITY ANALYSIS")
+        print("=" * 90)
+        vol_icon = (
+            "🟢"
+            if volatility_level == "low"
+            else "🟡"
+            if volatility_level == "medium"
+            else "🔴"
+        )
+        print(f"  {vol_icon} Volatility: {volatility:.2f}%")
+        print(f"  • Volatility Level: {volatility_level.upper()}")
+
+        print("\n" + "=" * 90)
+        print("SECTION 6: FORECAST INDICATORS")
+        print("=" * 90)
+        print(f"  🔮 Projected Astronauts: {projected_astronauts:.0f}")
+        print(f"  🔮 Projected Capacity: {projected_capacity:.2f}%")
+        print(f"  • Forecast Confidence: {forecast_confidence.upper()}")
+
+        print("\n" + "=" * 90)
+        print("SECTION 7: PATTERNS DETECTED")
+        print("=" * 90)
+        if patterns:
+            for i, pattern in enumerate(patterns, 1):
+                print(
+                    f"\n  📊 Pattern {i}: {pattern['pattern'].replace('_', ' ').upper()}"
+                )
+                print(f"     Description: {pattern['description']}")
+                print(f"     Implication: {pattern['implication']}")
+        else:
+            print("  • No significant patterns detected")
+
+        print("\n" + "=" * 90)
+        print("SECTION 8: COMPARATIVE METRICS")
+        print("=" * 90)
+        print(f"  • Quartile Position: {quartile_position.replace('_', ' ').upper()}")
+        print(
+            f"  • vs Baseline (Astronauts): {total_astronauts - baseline_astronauts:+d}"
+        )
+        print(
+            f"  • vs Baseline (Capacity): {capacity_utilization - baseline_capacity:+.2f}%"
+        )
+
+        print("\n" + "=" * 90)
+        print("END OF TREND CALCULATIONS")
+        print("=" * 90)
+        print("\n")
+
+        return trend_calculations
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -2056,6 +2439,9 @@ def example_astronauts():
         calculated_statistics,
         statistical_methods_result,
     )
+
+    # Calculate trends and growth rates (produces trend_calculations Dataset)
+    calculate_trends(astronaut_list, calculated_statistics, statistical_methods_result)
 
     # Fetch weather data independently (produces weather_data Dataset)
     weather_info = get_weather_data()

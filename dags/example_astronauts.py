@@ -141,6 +141,205 @@ def example_astronauts():
         return stats
 
     @task(
+        # Define a dataset outlet for calculated statistics
+        outlets=[Dataset("calculated_statistics")]
+    )
+    def calculate_astronauts_stats(astronauts: list[dict], **context) -> dict:
+        """
+        This task performs advanced statistical calculations on astronaut data
+        including name length analysis, spacecraft capacity metrics, distribution
+        patterns, and statistical measures (mean, median, variance, etc.).
+        """
+        # Get base data
+        total_astronauts = context["ti"].xcom_pull(key="number_of_people_in_space")
+
+        # Initialize collections
+        spacecraft_counts = {}
+        name_lengths = []
+        names_by_craft = {}
+
+        # Collect data for calculations
+        for person in astronauts:
+            craft = person["craft"]
+            name = person["name"]
+
+            # Count by spacecraft
+            spacecraft_counts[craft] = spacecraft_counts.get(craft, 0) + 1
+
+            # Track name lengths
+            name_lengths.append(len(name))
+
+            # Group names by craft
+            if craft not in names_by_craft:
+                names_by_craft[craft] = []
+            names_by_craft[craft].append(name)
+
+        # Calculate statistical measures
+        num_spacecraft = len(spacecraft_counts)
+        counts_list = list(spacecraft_counts.values())
+
+        # Mean calculations
+        mean_per_craft = sum(counts_list) / num_spacecraft if num_spacecraft > 0 else 0
+        mean_name_length = sum(name_lengths) / len(name_lengths) if name_lengths else 0
+
+        # Median calculation
+        sorted_counts = sorted(counts_list)
+        n = len(sorted_counts)
+        if n == 0:
+            median_per_craft = 0
+        elif n % 2 == 0:
+            median_per_craft = (sorted_counts[n // 2 - 1] + sorted_counts[n // 2]) / 2
+        else:
+            median_per_craft = sorted_counts[n // 2]
+
+        # Variance and Standard Deviation
+        if num_spacecraft > 0:
+            variance = (
+                sum((x - mean_per_craft) ** 2 for x in counts_list) / num_spacecraft
+            )
+            std_deviation = variance**0.5
+        else:
+            variance = 0
+            std_deviation = 0
+
+        # Range
+        min_per_craft = min(counts_list) if counts_list else 0
+        max_per_craft = max(counts_list) if counts_list else 0
+        range_per_craft = max_per_craft - min_per_craft
+
+        # Coefficient of Variation (relative variability)
+        coefficient_variation = (
+            (std_deviation / mean_per_craft * 100) if mean_per_craft > 0 else 0
+        )
+
+        # Distribution analysis
+        distribution_pattern = "uniform"
+        if std_deviation > mean_per_craft * 0.5:
+            distribution_pattern = "highly_variable"
+        elif std_deviation > mean_per_craft * 0.3:
+            distribution_pattern = "moderately_variable"
+
+        # Name analysis
+        shortest_name_length = min(name_lengths) if name_lengths else 0
+        longest_name_length = max(name_lengths) if name_lengths else 0
+        name_length_range = longest_name_length - shortest_name_length
+
+        # Capacity utilization (assuming theoretical max capacity)
+        theoretical_max_capacity = num_spacecraft * 10  # Assume max 10 per spacecraft
+        capacity_utilization = (
+            (total_astronauts / theoretical_max_capacity * 100)
+            if theoretical_max_capacity > 0
+            else 0
+        )
+
+        # Compile all statistics
+        calculated_stats = {
+            "basic_metrics": {
+                "total_astronauts": total_astronauts,
+                "number_of_spacecraft": num_spacecraft,
+                "spacecraft_names": list(spacecraft_counts.keys()),
+            },
+            "central_tendency": {
+                "mean_astronauts_per_craft": round(mean_per_craft, 2),
+                "median_astronauts_per_craft": round(median_per_craft, 2),
+                "mean_name_length": round(mean_name_length, 2),
+            },
+            "variability_measures": {
+                "variance": round(variance, 2),
+                "standard_deviation": round(std_deviation, 2),
+                "coefficient_of_variation_percent": round(coefficient_variation, 2),
+                "range": range_per_craft,
+                "min_per_craft": min_per_craft,
+                "max_per_craft": max_per_craft,
+            },
+            "distribution_analysis": {
+                "pattern": distribution_pattern,
+                "spacecraft_distribution": spacecraft_counts,
+                "distribution_evenness_score": round(
+                    100 - coefficient_variation, 2
+                ),  # Higher = more even
+            },
+            "name_statistics": {
+                "mean_name_length": round(mean_name_length, 2),
+                "shortest_name_length": shortest_name_length,
+                "longest_name_length": longest_name_length,
+                "name_length_range": name_length_range,
+            },
+            "capacity_metrics": {
+                "theoretical_max_capacity": theoretical_max_capacity,
+                "current_utilization_percent": round(capacity_utilization, 2),
+                "available_capacity": theoretical_max_capacity - total_astronauts,
+            },
+        }
+
+        # Print comprehensive statistics
+        print("=" * 70)
+        print("CALCULATED ASTRONAUT STATISTICS")
+        print("=" * 70)
+
+        print("\n📊 BASIC METRICS:")
+        print(f"  • Total Astronauts: {total_astronauts}")
+        print(f"  • Number of Spacecraft: {num_spacecraft}")
+
+        print("\n📈 CENTRAL TENDENCY:")
+        print(
+            f"  • Mean Astronauts per Craft: {calculated_stats['central_tendency']['mean_astronauts_per_craft']}"
+        )
+        print(
+            f"  • Median Astronauts per Craft: {calculated_stats['central_tendency']['median_astronauts_per_craft']}"
+        )
+
+        print("\n📉 VARIABILITY MEASURES:")
+        print(f"  • Standard Deviation: {std_deviation:.2f}")
+        print(f"  • Variance: {variance:.2f}")
+        print(f"  • Coefficient of Variation: {coefficient_variation:.2f}%")
+        print(
+            f"  • Range: {range_per_craft} (Min: {min_per_craft}, Max: {max_per_craft})"
+        )
+
+        print("\n🎯 DISTRIBUTION ANALYSIS:")
+        print(f"  • Pattern: {distribution_pattern.replace('_', ' ').title()}")
+        print(
+            f"  • Evenness Score: {calculated_stats['distribution_analysis']['distribution_evenness_score']}/100"
+        )
+        print("  • Per Spacecraft:")
+        for craft, count in spacecraft_counts.items():
+            deviation = count - mean_per_craft
+            print(f"    - {craft}: {count} (deviation: {deviation:+.2f})")
+
+        print("\n✍️  NAME STATISTICS:")
+        print(f"  • Mean Name Length: {mean_name_length:.2f} characters")
+        print(
+            f"  • Range: {shortest_name_length}-{longest_name_length} characters (span: {name_length_range})"
+        )
+
+        print("\n🚀 CAPACITY METRICS:")
+        print(f"  • Theoretical Max Capacity: {theoretical_max_capacity}")
+        print(f"  • Current Utilization: {capacity_utilization:.2f}%")
+        print(
+            f"  • Available Capacity: {calculated_stats['capacity_metrics']['available_capacity']}"
+        )
+
+        print("\n💡 STATISTICAL INSIGHTS:")
+        if distribution_pattern == "uniform":
+            print("  • Spacecraft have roughly equal crew distribution")
+        elif distribution_pattern == "moderately_variable":
+            print("  • Spacecraft show moderate variation in crew sizes")
+        else:
+            print("  • Spacecraft show high variation in crew sizes")
+
+        if coefficient_variation < 20:
+            print("  • Low variability indicates consistent crew allocation")
+        elif coefficient_variation < 50:
+            print("  • Moderate variability in crew distribution")
+        else:
+            print("  • High variability suggests diverse spacecraft missions")
+
+        print("=" * 70)
+
+        return calculated_stats
+
+    @task(
         # Define a dataset outlet for weather data
         outlets=[Dataset("weather_data")]
     )
@@ -356,6 +555,9 @@ def example_astronauts():
 
     # Aggregate astronaut data and create statistics (produces astronaut_statistics Dataset)
     astronaut_statistics = aggregate_astronaut_data(astronaut_list)
+
+    # Calculate advanced statistics (produces calculated_statistics Dataset)
+    calculate_astronauts_stats(astronaut_list)
 
     # Fetch weather data independently (produces weather_data Dataset)
     weather_info = get_weather_data()
